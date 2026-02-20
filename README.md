@@ -104,6 +104,7 @@ CFG = {
     # Fallback chain (first model != active will be used on empty response)
     "OUROBOROS_MODEL_FALLBACK_LIST": "anthropic/claude-sonnet-4.6,google/gemini-3-pro-preview,openai/gpt-4.1",
     # Infrastructure
+    "OUROBOROS_DRIVE_ROOT": "/content/drive/MyDrive/Ouroboros",  # Google Drive folder for memory/state
     "OUROBOROS_MAX_WORKERS": "5",
     "OUROBOROS_MAX_ROUNDS": "200",                               # max LLM rounds per task
     "OUROBOROS_BG_BUDGET_PCT": "10",                             # % of budget for background consciousness
@@ -194,6 +195,7 @@ Full text: [BIBLE.md](BIBLE.md)
 | `OUROBOROS_MODEL_CODE` | `anthropic/claude-sonnet-4.6` | Model for code editing tasks |
 | `OUROBOROS_MODEL_LIGHT` | `google/gemini-3-pro-preview` | Model for lightweight tasks (dedup, compaction) |
 | `OUROBOROS_WEBSEARCH_MODEL` | `gpt-5` | Model for web search (OpenAI Responses API) |
+| `OUROBOROS_DRIVE_ROOT` | `/content/drive/MyDrive/Ouroboros` | Google Drive folder for memory, state, and logs. Change to run multiple instances with separate memory. |
 | `OUROBOROS_MAX_WORKERS` | `5` | Maximum number of parallel worker processes |
 | `OUROBOROS_BG_BUDGET_PCT` | `10` | Percentage of total budget allocated to background consciousness |
 | `OUROBOROS_MAX_ROUNDS` | `200` | Maximum LLM rounds per task |
