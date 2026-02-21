@@ -22,7 +22,7 @@ import flet as ft
 from logging.handlers import RotatingFileHandler
 
 _LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-_log_dir = pathlib.Path.home() / "Documents" / "Ouroboros" / "data" / "logs"
+_log_dir = pathlib.Path.home() / "Library" / "Application Support" / "Ouroboros" / "data" / "logs"
 _log_dir.mkdir(parents=True, exist_ok=True)
 _file_handler = RotatingFileHandler(
     _log_dir / "app.log", maxBytes=2 * 1024 * 1024, backupCount=3, encoding="utf-8",
@@ -53,19 +53,20 @@ APP_START = time.time()
 # Paths and Bootstrapping
 # ---------------------------------------------------------------------------
 HOME = pathlib.Path.home()
-APP_ROOT = HOME / "Documents" / "Ouroboros"
+APP_ROOT = HOME / "Library" / "Application Support" / "Ouroboros"
 REPO_DIR = APP_ROOT / "repo"
 DATA_DIR = APP_ROOT / "data"
 SETTINGS_PATH = DATA_DIR / "settings.json"
 
 MODELS = [
     "anthropic/claude-sonnet-4.6",
+    "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-sonnet-4",
     "anthropic/claude-opus-4",
-    "google/gemini-3-pro-preview",
+    "google/gemini-2.5-pro-preview",
     "google/gemini-2.5-flash",
-    "openai/gpt-5",
+    "openai/o3",
     "openai/o3-mini",
-    "meta-llama/llama-4-70b",
 ]
 
 _SETTINGS_LOCK = pathlib.Path(str(SETTINGS_PATH) + ".lock")
@@ -75,7 +76,7 @@ _SETTINGS_DEFAULTS = {
     "ANTHROPIC_API_KEY": "",
     "OUROBOROS_MODEL": "anthropic/claude-sonnet-4.6",
     "OUROBOROS_MODEL_CODE": "anthropic/claude-sonnet-4.6",
-    "OUROBOROS_MODEL_LIGHT": "google/gemini-3-pro-preview",
+    "OUROBOROS_MODEL_LIGHT": "google/gemini-2.5-flash",
     "OUROBOROS_MAX_WORKERS": 5,
     "TOTAL_BUDGET": 10.0,
     "OUROBOROS_SOFT_TIMEOUT_SEC": 600,
@@ -135,9 +136,12 @@ def save_settings(settings: dict):
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     fd = _acquire_settings_lock()
     try:
-        tmp = SETTINGS_PATH.with_suffix(".tmp")
-        tmp.write_text(json.dumps(settings, indent=2), encoding="utf-8")
-        os.replace(str(tmp), str(SETTINGS_PATH))
+        try:
+            tmp = SETTINGS_PATH.with_suffix(".tmp")
+            tmp.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+            os.replace(str(tmp), str(SETTINGS_PATH))
+        except OSError:
+            SETTINGS_PATH.write_text(json.dumps(settings, indent=2), encoding="utf-8")
     finally:
         _release_settings_lock(fd)
 
@@ -196,7 +200,7 @@ def run_supervisor(settings: dict):
     os.environ["ANTHROPIC_API_KEY"] = str(settings.get("ANTHROPIC_API_KEY", ""))
     os.environ["OUROBOROS_MODEL"] = str(settings.get("OUROBOROS_MODEL", "anthropic/claude-sonnet-4.6"))
     os.environ["OUROBOROS_MODEL_CODE"] = str(settings.get("OUROBOROS_MODEL_CODE", "anthropic/claude-sonnet-4.6"))
-    os.environ["OUROBOROS_MODEL_LIGHT"] = str(settings.get("OUROBOROS_MODEL_LIGHT", "google/gemini-3-pro-preview"))
+    os.environ["OUROBOROS_MODEL_LIGHT"] = str(settings.get("OUROBOROS_MODEL_LIGHT", "google/gemini-2.5-flash"))
     os.environ["TOTAL_BUDGET"] = str(settings.get("TOTAL_BUDGET", 10.0))
     for _env_k in ("OUROBOROS_BG_MAX_ROUNDS", "OUROBOROS_BG_WAKEUP_MIN",
                     "OUROBOROS_BG_WAKEUP_MAX", "OUROBOROS_EVO_COST_THRESHOLD"):
@@ -357,7 +361,7 @@ def run_supervisor(settings: dict):
 
                 lowered = text.strip().lower()
                 if lowered.startswith("/panic"):
-                    send_with_budget(chat_id, "\ud83d\uded1 PANIC: stopping everything now.")
+                    send_with_budget(chat_id, "\U0001f6d1 PANIC: stopping everything now.")
                     kill_workers()
                     os._exit(1)
                 elif lowered.startswith("/restart"):
@@ -386,20 +390,20 @@ def run_supervisor(settings: dict):
                         sort_pending()
                         persist_queue_snapshot(reason="evolve_off")
                     state_str = "ON" if turn_on else "OFF"
-                    send_with_budget(chat_id, f"\ud83e\uddec Evolution: {state_str}")
+                    send_with_budget(chat_id, f"\U0001f9ec Evolution: {state_str}")
                     continue
                 elif lowered.startswith("/bg"):
                     parts = lowered.split()
                     action = parts[1] if len(parts) > 1 else "status"
                     if action in ("start", "on", "1"):
                         result = _consciousness.start()
-                        send_with_budget(chat_id, f"\ud83e\udde0 {result}")
+                        send_with_budget(chat_id, f"\U0001f9e0 {result}")
                     elif action in ("stop", "off", "0"):
                         result = _consciousness.stop()
-                        send_with_budget(chat_id, f"\ud83e\udde0 {result}")
+                        send_with_budget(chat_id, f"\U0001f9e0 {result}")
                     else:
                         bg_status = "running" if _consciousness.is_running else "stopped"
-                        send_with_budget(chat_id, f"\ud83e\udde0 Background consciousness: {bg_status}")
+                        send_with_budget(chat_id, f"\U0001f9e0 Background consciousness: {bg_status}")
                     continue
                 elif lowered.startswith("/status"):
                     from supervisor.state import status_text
@@ -448,7 +452,7 @@ def run_supervisor(settings: dict):
                 log.critical("Supervisor exceeded max retries. Stopping.")
                 if CHAT_BRIDGE:
                     try:
-                        CHAT_BRIDGE.send_message(1, f"\ud83d\uded1 Supervisor stopped after {MAX_CRASH_RETRIES} crashes. Please restart the app.")
+                        CHAT_BRIDGE.send_message(1, f"\U0001f6d1 Supervisor stopped after {MAX_CRASH_RETRIES} crashes. Please restart the app.")
                     except Exception:
                         pass
                 return

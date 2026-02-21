@@ -1,9 +1,57 @@
 """First-run setup wizard."""
 
+import logging
 import threading
-from typing import Dict
 
 import flet as ft
+
+log = logging.getLogger(__name__)
+
+SUGGESTED_MODELS = {
+    "main": [
+        "anthropic/claude-sonnet-4.6",
+        "anthropic/claude-sonnet-4.5",
+        "anthropic/claude-opus-4",
+        "google/gemini-2.5-pro-preview",
+    ],
+    "code": [
+        "anthropic/claude-sonnet-4.6",
+        "anthropic/claude-sonnet-4.5",
+        "anthropic/claude-opus-4",
+        "openai/o3",
+    ],
+    "light": [
+        "google/gemini-2.5-flash",
+        "google/gemini-2.5-pro-preview",
+        "openai/o3-mini",
+        "anthropic/claude-sonnet-4",
+    ],
+}
+
+
+def _make_model_row(label: str, field: ft.TextField, suggestions: list, page_ref: list):
+    """Create a model field with clickable suggestion chips."""
+    def _pick(val):
+        field.value = val
+        if page_ref[0]:
+            page_ref[0].update()
+
+    chips = ft.Row(
+        controls=[
+            ft.TextButton(
+                m.split("/")[-1],
+                on_click=lambda _e, mv=m: _pick(mv),
+                style=ft.ButtonStyle(padding=ft.padding.symmetric(horizontal=6, vertical=0)),
+            )
+            for m in suggestions
+        ],
+        wrap=True, spacing=2, run_spacing=2,
+    )
+    return ft.Column(spacing=4, controls=[
+        ft.Text(label, size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE70),
+        field,
+        chips,
+    ])
 
 
 def run_first_run_wizard(
@@ -15,26 +63,42 @@ def run_first_run_wizard(
     def _wizard(page: ft.Page):
         page.title = "Ouroboros \u2014 Setup"
         page.theme_mode = ft.ThemeMode.DARK
-        page.window.width = 600
-        page.window.height = 520
+        page.window.width = 640
+        page.window.height = 700
         page.padding = 0
         page.spacing = 0
 
+        page_ref = [page]
         step = [0]
         status_text = ft.Text("", size=13)
 
         api_key_input = ft.TextField(
             label="OpenRouter API Key", password=True, can_reveal_password=True,
-            width=450, hint_text="sk-or-...",
+            width=480, hint_text="sk-or-...",
         )
         openai_key_input = ft.TextField(
             label="OpenAI API Key (for web search)", password=True,
-            can_reveal_password=True, width=450, hint_text="sk-... (optional)",
+            can_reveal_password=True, width=480, hint_text="sk-... (optional)",
         )
-        model_dropdown = ft.Dropdown(
-            label="Main Model", width=450,
-            options=[ft.dropdown.Option(m) for m in models],
-            value=models[0] if models else "",
+        anthropic_key_input = ft.TextField(
+            label="Anthropic API Key", password=True,
+            can_reveal_password=True, width=480, hint_text="sk-ant-... (optional)",
+        )
+
+        model_main_field = ft.TextField(
+            label="Main Model", width=480,
+            value="anthropic/claude-sonnet-4.6",
+            hint_text="e.g. anthropic/claude-sonnet-4.6",
+        )
+        model_code_field = ft.TextField(
+            label="Code Model", width=480,
+            value="anthropic/claude-sonnet-4.6",
+            hint_text="e.g. anthropic/claude-sonnet-4.6",
+        )
+        model_light_field = ft.TextField(
+            label="Light Model (dedup, safety)", width=480,
+            value="google/gemini-2.5-flash",
+            hint_text="e.g. google/gemini-2.5-flash",
         )
 
         def _go_step(n):
@@ -76,15 +140,22 @@ def run_first_run_wizard(
             threading.Thread(target=_test, daemon=True).start()
 
         def _on_finish(_e):
-            s = dict(settings_defaults)
-            s["OPENROUTER_API_KEY"] = api_key_input.value.strip()
-            s["OPENAI_API_KEY"] = openai_key_input.value.strip()
-            s["OUROBOROS_MODEL"] = model_dropdown.value
-            s["OUROBOROS_MODEL_CODE"] = model_dropdown.value
-            save_fn(s)
-            _completed[0] = True
-            page.window.close()
+            try:
+                s = dict(settings_defaults)
+                s["OPENROUTER_API_KEY"] = api_key_input.value.strip()
+                s["OPENAI_API_KEY"] = openai_key_input.value.strip()
+                s["ANTHROPIC_API_KEY"] = anthropic_key_input.value.strip()
+                s["OUROBOROS_MODEL"] = model_main_field.value.strip()
+                s["OUROBOROS_MODEL_CODE"] = model_code_field.value.strip()
+                s["OUROBOROS_MODEL_LIGHT"] = model_light_field.value.strip()
+                save_fn(s)
+                _completed[0] = True
+            except Exception as exc:
+                log.error("Wizard save failed: %s", exc, exc_info=True)
+                _completed[0] = True
+            page.window.destroy()
 
+        # Step 0: Welcome
         step0 = ft.Column(
             visible=True, spacing=20,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -100,21 +171,22 @@ def run_first_run_wizard(
             ],
         )
 
+        # Step 1: API Keys
         step1 = ft.Column(
-            visible=False, spacing=16,
+            visible=False, spacing=14,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             controls=[
                 ft.Text("Step 1: API Keys", size=20, weight=ft.FontWeight.BOLD),
                 ft.Text(
-                    "Ouroboros needs an OpenRouter API key to communicate with LLMs.\n"
-                    "Get one at openrouter.ai",
+                    "Ouroboros uses OpenRouter for LLM access.\nGet a key at openrouter.ai",
                     size=13, color=ft.Colors.WHITE70, text_align=ft.TextAlign.CENTER,
                 ),
                 api_key_input,
                 ft.OutlinedButton("Test Connection", on_click=_on_test_key),
                 status_text,
                 openai_key_input,
-                ft.Text("OpenAI key enables web search (optional).", size=11, color=ft.Colors.WHITE38),
+                anthropic_key_input,
+                ft.Text("OpenAI key enables web search. Anthropic key is optional.", size=11, color=ft.Colors.WHITE38),
                 ft.Row([
                     ft.TextButton("Back", on_click=lambda _: _go_step(0)),
                     ft.FilledButton("Next", on_click=lambda _: _go_step(2)),
@@ -122,16 +194,21 @@ def run_first_run_wizard(
             ],
         )
 
+        # Step 2: Models
         step2 = ft.Column(
-            visible=False, spacing=16,
+            visible=False, spacing=14,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            scroll=ft.ScrollMode.AUTO,
             controls=[
-                ft.Text("Step 2: Choose a Model", size=20, weight=ft.FontWeight.BOLD),
+                ft.Text("Step 2: Choose Models", size=20, weight=ft.FontWeight.BOLD),
                 ft.Text(
-                    "Select the default model. You can change this later in Settings.",
-                    size=13, color=ft.Colors.WHITE70,
+                    "Pick or type model names. You can change these later in Settings.",
+                    size=13, color=ft.Colors.WHITE70, text_align=ft.TextAlign.CENTER,
                 ),
-                model_dropdown,
+                _make_model_row("Main (reasoning, chat)", model_main_field, SUGGESTED_MODELS["main"], page_ref),
+                _make_model_row("Code (editing, commits)", model_code_field, SUGGESTED_MODELS["code"], page_ref),
+                _make_model_row("Light (dedup, safety checks)", model_light_field, SUGGESTED_MODELS["light"], page_ref),
+                ft.Container(height=8),
                 ft.Row([
                     ft.TextButton("Back", on_click=lambda _: _go_step(1)),
                     ft.FilledButton("Launch Ouroboros", on_click=_on_finish, icon=ft.Icons.ROCKET_LAUNCH),
@@ -141,7 +218,7 @@ def run_first_run_wizard(
 
         step_views = [step0, step1, step2]
         page.add(ft.Container(
-            expand=True, padding=40,
+            expand=True, padding=30,
             alignment=ft.alignment.center,
             content=ft.Stack(controls=step_views),
         ))
