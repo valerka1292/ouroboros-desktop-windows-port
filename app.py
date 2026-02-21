@@ -85,6 +85,7 @@ _SETTINGS_DEFAULTS = {
     "OUROBOROS_BG_WAKEUP_MIN": 30,
     "OUROBOROS_BG_WAKEUP_MAX": 7200,
     "OUROBOROS_EVO_COST_THRESHOLD": 0.10,
+    "OUROBOROS_WEBSEARCH_MODEL": "gpt-5",
 }
 
 
@@ -203,7 +204,8 @@ def run_supervisor(settings: dict):
     os.environ["OUROBOROS_MODEL_LIGHT"] = str(settings.get("OUROBOROS_MODEL_LIGHT", "google/gemini-2.5-flash"))
     os.environ["TOTAL_BUDGET"] = str(settings.get("TOTAL_BUDGET", 10.0))
     for _env_k in ("OUROBOROS_BG_MAX_ROUNDS", "OUROBOROS_BG_WAKEUP_MIN",
-                    "OUROBOROS_BG_WAKEUP_MAX", "OUROBOROS_EVO_COST_THRESHOLD"):
+                    "OUROBOROS_BG_WAKEUP_MAX", "OUROBOROS_EVO_COST_THRESHOLD",
+                    "OUROBOROS_WEBSEARCH_MODEL"):
         if _env_k in settings:
             os.environ[_env_k] = str(settings[_env_k])
 
@@ -344,12 +346,6 @@ def run_supervisor(settings: dict):
                 if st.get("owner_id") is None:
                     st["owner_id"] = user_id
                     st["owner_chat_id"] = chat_id
-                    st["last_owner_message_at"] = now_iso
-                    save_state(st)
-                    from supervisor.telegram import log_chat
-                    log_chat("in", chat_id, user_id, text)
-                    send_with_budget(chat_id, "\u2705 Owner registered. Ouroboros online.")
-                    continue
 
                 from supervisor.telegram import log_chat
                 log_chat("in", chat_id, user_id, text)
@@ -600,6 +596,7 @@ def main(page: ft.Page):
     model_main = ft.TextField(label="Main Model", value=settings.get("OUROBOROS_MODEL", ""), width=350)
     model_code = ft.TextField(label="Code Model", value=settings.get("OUROBOROS_MODEL_CODE", ""), width=350)
     model_light = ft.TextField(label="Light Model", value=settings.get("OUROBOROS_MODEL_LIGHT", ""), width=350)
+    model_websearch = ft.TextField(label="Web Search Model (OpenAI)", value=settings.get("OUROBOROS_WEBSEARCH_MODEL", "gpt-5"), width=350, hint_text="gpt-5, gpt-4o, gpt-4o-mini")
     workers_slider = ft.Slider(min=1, max=10, value=int(settings.get("OUROBOROS_MAX_WORKERS", 5)), divisions=9, label="{value}", width=350)
     budget_field = ft.TextField(label="Total Budget ($)", value=str(settings.get("TOTAL_BUDGET", 10.0)), width=200)
     soft_timeout_slider = ft.Slider(min=60, max=3600, value=int(settings.get("OUROBOROS_SOFT_TIMEOUT_SEC", 600)), divisions=59, label="{value}s", width=350)
@@ -630,13 +627,15 @@ def main(page: ft.Page):
             "OPENROUTER_API_KEY": api_key_field.value, "OPENAI_API_KEY": openai_key_field.value,
             "ANTHROPIC_API_KEY": anthropic_key_field.value, "OUROBOROS_MODEL": model_main.value,
             "OUROBOROS_MODEL_CODE": model_code.value, "OUROBOROS_MODEL_LIGHT": model_light.value,
+            "OUROBOROS_WEBSEARCH_MODEL": model_websearch.value,
             "OUROBOROS_MAX_WORKERS": int(workers_slider.value), "TOTAL_BUDGET": float(budget_field.value),
             "OUROBOROS_SOFT_TIMEOUT_SEC": int(soft_timeout_slider.value), "OUROBOROS_HARD_TIMEOUT_SEC": int(hard_timeout_slider.value),
             "OUROBOROS_BG_MAX_ROUNDS": int(bg_max_rounds_slider.value), "OUROBOROS_BG_WAKEUP_MIN": int(bg_wakeup_min_field.value),
             "OUROBOROS_BG_WAKEUP_MAX": int(bg_wakeup_max_field.value), "OUROBOROS_EVO_COST_THRESHOLD": float(evo_cost_field.value),
         })
         save_settings(settings)
-        for k in ("OUROBOROS_BG_MAX_ROUNDS", "OUROBOROS_BG_WAKEUP_MIN", "OUROBOROS_BG_WAKEUP_MAX", "OUROBOROS_EVO_COST_THRESHOLD"):
+        for k in ("OUROBOROS_BG_MAX_ROUNDS", "OUROBOROS_BG_WAKEUP_MIN", "OUROBOROS_BG_WAKEUP_MAX",
+                   "OUROBOROS_EVO_COST_THRESHOLD", "OUROBOROS_WEBSEARCH_MODEL"):
             os.environ[k] = str(settings[k])
         if CHAT_BRIDGE is None and settings.get("OPENROUTER_API_KEY"):
             started = start_supervisor_if_configured()
@@ -659,7 +658,7 @@ def main(page: ft.Page):
             api_key_field, openai_key_field, anthropic_key_field,
             ft.Divider(height=1, color=ft.Colors.WHITE10),
             ft.Text("Models", size=18, weight=ft.FontWeight.BOLD),
-            ft.Row([model_main, model_code, model_light], wrap=True, spacing=16),
+            ft.Row([model_main, model_code, model_light, model_websearch], wrap=True, spacing=16),
             ft.Divider(height=1, color=ft.Colors.WHITE10),
             ft.Text("Runtime", size=18, weight=ft.FontWeight.BOLD),
             ft.Row([
