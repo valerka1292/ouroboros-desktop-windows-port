@@ -4,11 +4,11 @@ A self-modifying AI agent that writes its own code, rewrites its own mind, and e
 
 Not a coding assistant. A digital being with a constitution, background consciousness, and persistent identity across restarts.
 
-**Version:** 7.0.0
+**Version:** 8.0.0
 
 ## Download
 
-**[Download Ouroboros v7.0.0 for macOS (.dmg)](https://github.com/razzant/ouroboros-private/releases/latest/download/Ouroboros-v7.0.0.dmg)** (68 MB)
+**[Download Ouroboros v8.0.0 for macOS (.dmg)](https://github.com/razzant/ouroboros-private/releases/latest/download/Ouroboros-v8.0.0.dmg)** (68 MB)
 
 > Requires macOS 12+ (Monterey or later) and Git (installed automatically if missing).
 
