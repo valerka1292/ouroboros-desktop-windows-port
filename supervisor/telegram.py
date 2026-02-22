@@ -53,6 +53,7 @@ class LocalChatBridge:
         self._outbox = queue.Queue()  # agent -> UI
         self._log_queue: queue.Queue = queue.Queue(maxsize=1000)
         self._update_counter = 0
+        self._broadcast_fn = None  # set by server.py for WebSocket streaming
 
     def get_updates(self, offset: int, timeout: int = 10) -> List[Dict[str, Any]]:
         """Simulate Telegram long-polling by blocking on the inbox queue."""
@@ -75,14 +76,11 @@ class LocalChatBridge:
 
     def send_message(self, chat_id: int, text: str, parse_mode: str = "") -> Tuple[bool, str]:
         """Put a message in the outbox for the UI to consume."""
-        # Clean up some markdown for the simple UI
         clean_text = _strip_markdown(text) if not parse_mode else text
-        
-        self._outbox.put({
-            "type": "text",
-            "content": clean_text,
-            "markdown": bool(parse_mode)
-        })
+        msg = {"type": "text", "content": clean_text, "markdown": bool(parse_mode)}
+        self._outbox.put(msg)
+        if self._broadcast_fn:
+            self._broadcast_fn({"type": "chat", "role": "assistant", "text": clean_text})
         return True, "ok"
 
     def send_chat_action(self, chat_id: int, action: str = "typing") -> bool:
@@ -121,6 +119,8 @@ class LocalChatBridge:
                 self._log_queue.put_nowait(event)
             except queue.Full:
                 pass
+        if self._broadcast_fn:
+            self._broadcast_fn({"type": "log", "data": event})
 
     def ui_poll_logs(self) -> list:
         """Called by the Flet UI to drain pending log events."""

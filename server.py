@@ -179,9 +179,10 @@ def _run_supervisor(settings: dict) -> None:
 
     try:
         from supervisor.telegram import init as telegram_init
-        from supervisor.telegram import WebSocketBridge
+        from supervisor.telegram import LocalChatBridge
 
-        bridge = WebSocketBridge(broadcast_fn=broadcast_ws_sync)
+        bridge = LocalChatBridge(token="local")
+        bridge._broadcast_fn = broadcast_ws_sync
 
         from ouroboros.utils import set_log_sink
         set_log_sink(bridge.push_log)
