@@ -622,7 +622,7 @@ async def shutdown_event():
     log.info("Server shutting down...")
     try:
         from supervisor.workers import kill_workers
-        kill_workers()
+        kill_workers(force=True)
     except Exception:
         pass
 
@@ -685,4 +685,18 @@ if __name__ == "__main__":
 
     if _restart_requested.is_set():
         log.info("Exiting with code %d (restart signal).", RESTART_EXIT_CODE)
-        sys.exit(RESTART_EXIT_CODE)
+        # Force-kill any remaining worker processes before exit
+        try:
+            from supervisor.workers import kill_workers
+            kill_workers(force=True)
+        except Exception:
+            pass
+        # Kill any remaining multiprocessing children
+        import multiprocessing, signal
+        for child in multiprocessing.active_children():
+            try:
+                os.kill(child.pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+        # Hard exit — sys.exit() can hang if threads/children are stuck
+        os._exit(RESTART_EXIT_CODE)
