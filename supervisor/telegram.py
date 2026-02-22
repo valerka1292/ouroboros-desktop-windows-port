@@ -80,7 +80,7 @@ class LocalChatBridge:
         msg = {"type": "text", "content": clean_text, "markdown": bool(parse_mode)}
         self._outbox.put(msg)
         if self._broadcast_fn:
-            self._broadcast_fn({"type": "chat", "role": "assistant", "text": clean_text})
+            self._broadcast_fn({"type": "chat", "role": "assistant", "content": clean_text})
         return True, "ok"
 
     def send_chat_action(self, chat_id: int, action: str = "typing") -> bool:
