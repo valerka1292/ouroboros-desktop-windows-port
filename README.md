@@ -55,7 +55,7 @@ Ouroboros.app
 └── Bundled Python + deps
 ```
 
-### Local Storage (`~/Documents/Ouroboros/`)
+### Local Storage (`~/Ouroboros/`)
 
 Created on first launch:
 - `repo/` — Self-modifying local Git repository.
