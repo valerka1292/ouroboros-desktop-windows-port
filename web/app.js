@@ -574,7 +574,7 @@ function initVersions() {
         row.style.display = 'flex';
         row.style.alignItems = 'center';
         row.style.gap = '8px';
-        const date = (item.date || '').slice(0, 10);
+        const date = (item.date || '').slice(0, 16).replace('T', ' ');
         const msg = escapeHtml((item.message || '').slice(0, 60));
         row.innerHTML = `
             <span class="log-type tools" style="min-width:70px;text-align:center">${escapeHtml(labelText)}</span>

@@ -28,12 +28,14 @@ from typing import Optional
 # Paths
 # ---------------------------------------------------------------------------
 HOME = pathlib.Path.home()
-APP_ROOT = HOME / "Library" / "Application Support" / "Ouroboros"
+APP_ROOT = HOME / "Documents" / "Ouroboros"
 REPO_DIR = APP_ROOT / "repo"
 DATA_DIR = APP_ROOT / "data"
 SETTINGS_PATH = DATA_DIR / "settings.json"
 PID_FILE = APP_ROOT / "ouroboros.pid"
 PORT_FILE = DATA_DIR / "state" / "server_port"
+
+OLD_APP_ROOT = HOME / "Library" / "Application Support" / "Ouroboros"
 
 RESTART_EXIT_CODE = 42
 AGENT_SERVER_PORT = 8765
@@ -154,8 +156,18 @@ def _sync_core_files() -> None:
     log.info("Synced %d core files to %s", len(sync_paths), REPO_DIR)
 
 
+def _migrate_from_old_location() -> None:
+    """Move data from ~/Library/Application Support/Ouroboros to ~/Documents/Ouroboros."""
+    if OLD_APP_ROOT.exists() and not APP_ROOT.exists():
+        log.info("Migrating data from %s to %s", OLD_APP_ROOT, APP_ROOT)
+        shutil.move(str(OLD_APP_ROOT), str(APP_ROOT))
+    elif OLD_APP_ROOT.exists() and APP_ROOT.exists():
+        log.info("Both old and new locations exist; keeping new, ignoring old.")
+
+
 def bootstrap_repo() -> None:
     """Copy bundled codebase to REPO_DIR on first run, sync core files always."""
+    _migrate_from_old_location()
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     if REPO_DIR.exists() and (REPO_DIR / "server.py").exists():
         _sync_core_files()
