@@ -58,28 +58,23 @@ def _get_pricing() -> Dict[str, Tuple[float, float, float]]:
     """
     global _pricing_fetched, _cached_pricing
 
-    # Fast path: already fetched (read without lock for performance)
-    if _pricing_fetched:
-        return _cached_pricing or _MODEL_PRICING_STATIC
-
-    # Slow path: fetch pricing (lock required)
+    # Single locked path: avoids races between flag/cache updates.
     with _pricing_lock:
-        # Double-check after acquiring lock (another thread may have fetched)
+        if _cached_pricing is None:
+            _cached_pricing = dict(_MODEL_PRICING_STATIC)
         if _pricing_fetched:
-            return _cached_pricing or _MODEL_PRICING_STATIC
-
-        _pricing_fetched = True
-        _cached_pricing = dict(_MODEL_PRICING_STATIC)
+            return _cached_pricing
 
         try:
             from ouroboros.llm import fetch_openrouter_pricing
             _live = fetch_openrouter_pricing()
             if _live and len(_live) > 5:
                 _cached_pricing.update(_live)
+            _pricing_fetched = True
         except Exception as e:
             import logging as _log
             _log.getLogger(__name__).warning("Failed to sync pricing from OpenRouter: %s", e)
-            # Reset flag so we retry next time
+            # Keep flag false so we retry on next call.
             _pricing_fetched = False
 
         return _cached_pricing
@@ -704,6 +699,9 @@ def run_llm_loop(
                 # Light compaction: only if messages list is very long (>60 items)
                 if len(messages) > 60:
                     messages = compact_tool_history(messages, keep_recent=6)
+            # keep safety-check context pointer in sync after compaction rebinds
+            if tools._ctx.messages is not messages:
+                tools._ctx.messages = messages
 
             # --- LLM call with retry ---
             msg, cost = _call_llm_with_retry(

@@ -1,4 +1,4 @@
-# Ouroboros v3.2.0 — Architecture & Reference
+# Ouroboros v3.3.0 — Architecture & Reference
 
 This document describes every component, page, button, API endpoint, and data flow.
 It is the single source of truth for how the system works. Keep it updated.
@@ -208,7 +208,7 @@ Navigation is a left sidebar with 7 pages.
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/` | Serves `web/index.html` |
-| GET | `/api/health` | `{status, version}` |
+| GET | `/api/health` | `{status, version, runtime_version, app_version}` |
 | GET | `/api/state` | Dashboard data: uptime, workers, budget, branch, etc. |
 | GET | `/api/settings` | Current settings with masked API keys |
 | POST | `/api/settings` | Update settings (partial update, only provided keys) |
@@ -217,6 +217,11 @@ Navigation is a left sidebar with 7 pages.
 | GET | `/api/git/log` | Recent commits + tags + current branch/sha |
 | POST | `/api/git/rollback` | Rollback to a specific commit/tag `{target: "sha"}` |
 | POST | `/api/git/promote` | Promote ouroboros → ouroboros-stable |
+| GET | `/api/cost-breakdown` | Cost dashboard aggregation by model/key/category |
+| POST | `/api/local-model/start` | Start/download local model server |
+| POST | `/api/local-model/stop` | Stop local model server |
+| GET | `/api/local-model/status` | Local model status and readiness |
+| POST | `/api/local-model/test` | Local model sanity test (chat + tool calling) |
 | WS | `/ws` | WebSocket: chat messages, commands, log streaming |
 | GET | `/static/*` | Static files from `web/` directory |
 
@@ -290,7 +295,9 @@ Two-layer LLM security:
 1. **Layer 1 (fast)**: Light model checks if tool call is SAFE/SUSPICIOUS/DANGEROUS
 2. **Layer 2 (deep)**: If flagged, heavy model re-evaluates with "are you sure?" nudge
 
-Hardcoded sandbox in `registry.py`: blocks deletion of BIBLE.md and safety.py regardless of LLM verdict.
+Hardcoded sandbox in `registry.py`: blocks destructive deletion patterns for BIBLE.md and safety.py regardless of LLM verdict.
+`identity.md` is intentionally mutable (self-creation) and can be rewritten radically;
+the constitutional guard is that the file itself must remain non-deletable.
 
 ### Background consciousness (consciousness.py)
 
@@ -438,7 +445,8 @@ automatically on completion or via `kill_all_tracked_subprocesses()` on panic.
 
 ## 10. Key Invariants
 
-1. **Never delete BIBLE.md or identity.md** (hardcoded + LLM safety)
+1. **Never delete BIBLE.md. Never physically delete `identity.md` file.**
+   (`identity.md` content is intentionally mutable and may be radically rewritten.)
 2. **VERSION == pyproject.toml version == latest git tag == README version**
 3. **Config SSOT**: all settings defaults and paths live in `ouroboros/config.py`
 4. **Message bus SSOT**: all messaging goes through `supervisor/message_bus.py`

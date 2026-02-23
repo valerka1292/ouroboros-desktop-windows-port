@@ -490,7 +490,15 @@ async def ws_endpoint(websocket: WebSocket) -> None:
 
 
 async def api_health(request: Request) -> JSONResponse:
-    return JSONResponse({"status": "ok", "version": _read_version()})
+    runtime_version = _read_version()
+    app_version = os.environ.get("OUROBOROS_APP_VERSION", "").strip() or runtime_version
+    return JSONResponse({
+        "status": "ok",
+        # legacy field for backward compatibility
+        "version": runtime_version,
+        "runtime_version": runtime_version,
+        "app_version": app_version,
+    })
 
 
 async def api_state(request: Request) -> JSONResponse:

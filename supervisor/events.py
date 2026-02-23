@@ -22,8 +22,53 @@ log = logging.getLogger(__name__)
 
 
 def _handle_llm_usage(evt: Dict[str, Any], ctx: Any) -> None:
-    usage = evt.get("usage") or {}
-    ctx.update_budget_from_usage(usage)
+    usage_raw = evt.get("usage")
+    usage: Dict[str, Any] = usage_raw if isinstance(usage_raw, dict) else {}
+
+    # Normalize usage shape across producers:
+    # - loop.py emits `usage` + top-level `cost`
+    # - web_search may provide input/output token names
+    # - claude_code_edit provides top-level `cost`
+    prompt_tokens = int(
+        usage.get("prompt_tokens")
+        or usage.get("input_tokens")
+        or evt.get("prompt_tokens")
+        or 0
+    )
+    completion_tokens = int(
+        usage.get("completion_tokens")
+        or usage.get("output_tokens")
+        or evt.get("completion_tokens")
+        or 0
+    )
+    cached_tokens = int(
+        usage.get("cached_tokens")
+        or evt.get("cached_tokens")
+        or 0
+    )
+    cache_write_tokens = int(
+        usage.get("cache_write_tokens")
+        or evt.get("cache_write_tokens")
+        or 0
+    )
+
+    raw_cost = usage.get("cost")
+    if raw_cost is None:
+        raw_cost = evt.get("cost")
+    try:
+        resolved_cost = float(raw_cost or 0.0)
+    except (TypeError, ValueError):
+        resolved_cost = 0.0
+
+    usage_for_budget = {
+        **usage,
+        "cost": resolved_cost,
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "cached_tokens": cached_tokens,
+        "cache_write_tokens": cache_write_tokens,
+    }
+    ctx.update_budget_from_usage(usage_for_budget)
 
     # Log to events.jsonl for audit trail
     from ouroboros.utils import utc_now_iso, append_jsonl
@@ -34,9 +79,9 @@ def _handle_llm_usage(evt: Dict[str, Any], ctx: Any) -> None:
             "task_id": evt.get("task_id", ""),
             "category": evt.get("category", "other"),
             "model": evt.get("model", ""),
-            "cost": usage.get("cost", 0),
-            "prompt_tokens": usage.get("prompt_tokens", 0),
-            "completion_tokens": usage.get("completion_tokens", 0),
+            "cost": resolved_cost,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
         })
     except Exception:
         log.warning("Failed to log llm_usage event to events.jsonl", exc_info=True)

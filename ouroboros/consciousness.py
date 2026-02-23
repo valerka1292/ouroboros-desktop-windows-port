@@ -224,7 +224,9 @@ class BackgroundConsciousness:
                     self._event_queue.put({
                         "type": "llm_usage",
                         "provider": "openrouter",
+                        "model": model,
                         "usage": usage,
+                        "cost": cost,
                         "source": "consciousness",
                         "ts": utc_now_iso(),
                         "category": "consciousness",

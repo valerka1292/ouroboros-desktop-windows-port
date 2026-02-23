@@ -915,13 +915,27 @@ function renderMarkdown(text) {
 // ---------------------------------------------------------------------------
 // Version display
 // ---------------------------------------------------------------------------
+function extractVersions(data) {
+    const runtimeVersion = data?.runtime_version || data?.version || '?';
+    const appVersion = data?.app_version || runtimeVersion;
+    return { appVersion, runtimeVersion };
+}
+
+function formatDualVersion(data) {
+    const { appVersion, runtimeVersion } = extractVersions(data);
+    return `app ${appVersion} | rt ${runtimeVersion}`;
+}
+
 async function loadVersion() {
     try {
         const resp = await fetch('/api/health');
         const data = await resp.json();
-        document.getElementById('nav-version').textContent = `v${data.version || '?'}`;
+        document.getElementById('nav-version').textContent = formatDualVersion(data);
         const dashTitle = document.getElementById('dash-title');
-        if (dashTitle) dashTitle.textContent = `Ouroboros v${data.version}`;
+        if (dashTitle) {
+            const { runtimeVersion } = extractVersions(data);
+            dashTitle.textContent = `Ouroboros rt v${runtimeVersion}`;
+        }
     } catch {}
 }
 
@@ -960,7 +974,7 @@ function initAbout() {
     `;
     document.getElementById('content').appendChild(page);
     fetch('/api/health').then(r => r.json()).then(d => {
-        document.getElementById('about-version').textContent = 'v' + (d.version || '?');
+        document.getElementById('about-version').textContent = formatDualVersion(d);
     }).catch(() => {});
 }
 

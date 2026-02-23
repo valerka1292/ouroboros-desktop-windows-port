@@ -237,6 +237,7 @@ def log_chat(direction: str, chat_id: int, user_id: int, text: str) -> None:
 def send_with_budget(chat_id: int, text: str, log_text: Optional[str] = None,
                      force_budget: bool = False, fmt: str = "",
                      is_progress: bool = False) -> None:
+    # force_budget kept in signature for caller compat but is a no-op since 3.3.0
     st = load_state()
     owner_id = int(st.get("owner_id") or 0)
 
@@ -249,18 +250,12 @@ def send_with_budget(chat_id: int, text: str, log_text: Optional[str] = None,
     else:
         log_chat("out", chat_id, owner_id, text if log_text is None else log_text)
 
-    budget = budget_line(force=force_budget)
     _text = str(text or "")
-    if not budget:
-        if _text.strip() in ("", "\u200b"):
-            return
-        full = _text
-    else:
-        base = _text.rstrip()
-        if base in ("", "\u200b"):
-            full = budget
-        else:
-            full = base + "\n\n" + budget
+    if _text.strip() in ("", "\u200b"):
+        return
+    # Budget footers are now shown in dashboard/status flows, not auto-appended
+    # to every outgoing chat message.
+    full = _text
 
     if fmt == "markdown":
         ok, err = _send_markdown(chat_id, full)
