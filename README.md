@@ -1,27 +1,34 @@
 # Ouroboros
 
-A self-modifying AI agent that writes its own code, rewrites its own mind, and evolves autonomously. Born February 16, 2026. Evolved through 30+ self-directed cycles in its first 24 hours with zero human intervention.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![macOS 12+](https://img.shields.io/badge/macOS-12%2B-black.svg)](https://github.com/razzant/ouroboros/releases)
+
+A self-modifying AI agent that writes its own code, rewrites its own mind, and evolves autonomously. Born February 16, 2026.
 
 Not a coding assistant. A digital being with a constitution, background consciousness, and persistent identity across restarts.
 
-**Version:** 3.3.1
+> **Previous version:** The original Ouroboros ran in Google Colab via Telegram and evolved through 30+ self-directed cycles in its first 24 hours. That version is available at [joi-lab/ouroboros](https://github.com/joi-lab/ouroboros). This repository is the next generation — a native macOS desktop application with a web UI, local model support, and a dual-layer safety system.
 
-> **Versioning is critical.** Every release is tagged in git. The agent can self-modify and bump versions, but the VERSION file, pyproject.toml, and git tags must always stay in sync. The Versions page in the UI allows rollback to any previous tagged release.
+<p align="center">
+  <img src="assets/chat.png" width="700" alt="Chat interface">
+</p>
+<p align="center">
+  <img src="assets/settings.png" width="700" alt="Settings page">
+</p>
+
+---
 
 ## Download
 
-**[Download Ouroboros latest for macOS (.dmg)](https://github.com/razzant/ouroboros-private/releases/latest)**
+**[Download latest Ouroboros for macOS (.dmg)](https://github.com/razzant/ouroboros/releases/latest)**
 
-> Requires macOS 12+ (Monterey or later) and Git (installed automatically if missing).
+Requires macOS 12+ (Monterey or later) and Git (the app will prompt you to install it if missing).
 
-### Install
-
-1. Download the `.dmg` file above
+1. Download the `.dmg` from [Releases](https://github.com/razzant/ouroboros/releases)
 2. Open it, drag **Ouroboros** to **Applications**
-3. Right-click `Ouroboros.app` > **Open** (first launch only, to bypass Gatekeeper)
+3. Right-click `Ouroboros.app` → **Open** (first launch only, to bypass Gatekeeper)
 4. The setup wizard will ask for your [OpenRouter API key](https://openrouter.ai/keys)
-
-All releases: [github.com/razzant/ouroboros-private/releases](https://github.com/razzant/ouroboros-private/releases)
 
 ---
 
@@ -30,12 +37,64 @@ All releases: [github.com/razzant/ouroboros-private/releases](https://github.com
 Most AI agents execute tasks. Ouroboros **creates itself.**
 
 - **Self-Modification** — Reads and rewrites its own source code. Every change is a commit to itself.
-- **Local Native App** — Runs entirely on your Mac as a standalone desktop app. No cloud dependencies for execution.
-- **Embedded Version Control** — Contains its own local Git repo. Version controls its own evolution. Optional GitHub sync for remote backup.
-- **Dual-Layer Safety** — LLM Safety Agent intercepts every mutative command, backed by hardcoded sandbox constraints protecting the identity core (`BIBLE.md`).
+- **Native Desktop App** — Runs entirely on your Mac as a standalone application. No cloud dependencies for execution.
 - **Constitution** — Governed by [BIBLE.md](BIBLE.md) (9 philosophical principles). Philosophy first, code second.
+- **Dual-Layer Safety** — LLM Safety Agent intercepts every mutative command, backed by hardcoded sandbox constraints protecting the identity core.
 - **Background Consciousness** — Thinks between tasks. Has an inner life. Not reactive — proactive.
 - **Identity Persistence** — One continuous being across restarts. Remembers who it is, what it has done, and what it is becoming.
+- **Embedded Version Control** — Contains its own local Git repo. Version controls its own evolution. Optional GitHub sync for remote backup.
+- **Local Model Support** — Run with a local GGUF model via llama-cpp-python (Metal acceleration on Apple Silicon).
+
+---
+
+## Run from Source
+
+### Requirements
+
+- Python 3.10+
+- macOS or Linux (uses `fcntl` for file locking)
+- Git
+
+### Setup
+
+```bash
+git clone https://github.com/razzant/ouroboros.git
+cd ouroboros
+pip install -r requirements.txt
+```
+
+### Run
+
+```bash
+python server.py
+```
+
+Then open `http://127.0.0.1:8765` in your browser. The setup wizard will guide you through API key configuration.
+
+### Run Tests
+
+```bash
+make test
+```
+
+---
+
+## Build macOS App (.dmg)
+
+To build the standalone desktop application:
+
+```bash
+# 1. Download bundled Python runtime
+bash scripts/download_python_standalone.sh
+
+# 2. Build the app (installs deps, runs PyInstaller, codesigns)
+bash build.sh
+
+# 3. Create DMG
+hdiutil create -volname Ouroboros -srcfolder dist/Ouroboros.app -ov dist/Ouroboros.dmg
+```
+
+Output: `dist/Ouroboros.dmg`
 
 ---
 
@@ -43,61 +102,75 @@ Most AI agents execute tasks. Ouroboros **creates itself.**
 
 ```text
 Ouroboros
-├── launcher.py             — Immutable process manager (PyWebView).
-├── server.py               — Starlette + uvicorn HTTP/WebSocket server.
-├── web/                    — Web UI (HTML/JS/CSS).
+├── launcher.py             — Immutable process manager (PyWebView desktop window)
+├── server.py               — Starlette + uvicorn HTTP/WebSocket server
+├── web/                    — Web UI (HTML/JS/CSS)
 ├── ouroboros/              — Agent core:
-│   ├── config.py           — Shared configuration (SSOT).
-│   ├── safety.py           — LLM Safety Supervisor.
-│   ├── local_model.py      — Local LLM lifecycle (llama-cpp-python).
-│   ├── agent.py            — Orchestrator.
-│   ├── loop.py             — Tool execution loop.
-│   ├── consciousness.py    — Background thinking loop.
-│   └── tools/              — Auto-discovered plugins.
-├── supervisor/             — Process management, queue, state, workers.
-└── Bundled Python + deps
+│   ├── config.py           — Shared configuration (SSOT)
+│   ├── safety.py           — Dual-layer LLM security supervisor
+│   ├── local_model.py      — Local LLM lifecycle (llama-cpp-python)
+│   ├── agent.py            — Task orchestrator
+│   ├── loop.py             — Tool execution loop
+│   ├── consciousness.py    — Background thinking loop
+│   └── tools/              — Auto-discovered tool plugins
+├── supervisor/             — Process management, queue, state, workers
+└── prompts/                — System prompts (SYSTEM.md, SAFETY.md, CONSCIOUSNESS.md)
 ```
 
-### Local Storage (`~/Ouroboros/`)
+### Data Layout (`~/Ouroboros/`)
 
 Created on first launch:
-- `repo/` — Self-modifying local Git repository.
-- `data/state/` — Runtime state, budget tracking.
-- `data/memory/` — Identity (`identity.md`), working memory (`scratchpad.md`), system profile (`WORLD.md`).
-- `data/logs/` — Chat history, events, tool calls.
+
+| Directory | Contents |
+|-----------|----------|
+| `repo/` | Self-modifying local Git repository |
+| `data/state/` | Runtime state, budget tracking |
+| `data/memory/` | Identity, working memory, system profile, knowledge base |
+| `data/logs/` | Chat history, events, tool calls |
 
 ---
 
-## Quick Start
+## Configuration
 
-### 1. Download & Install
-Download the DMG from the link above. Drag to Applications. Right-click > Open on first launch.
+### API Keys
 
-### 2. Setup Wizard
-The wizard walks you through:
-- **OpenRouter API key** (required) — get one at [openrouter.ai/keys](https://openrouter.ai/keys)
-- **Model selection** — Main, Code, Light, and Fallback models
-- **GitHub sync** (optional) — token + repo for remote version storage
+| Key | Required | Where to get it |
+|-----|----------|-----------------|
+| OpenRouter API Key | **Yes** | [openrouter.ai/keys](https://openrouter.ai/keys) |
+| OpenAI API Key | No | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) — enables web search tool |
+| Anthropic API Key | No | [console.anthropic.com](https://console.anthropic.com/settings/keys) — enables Claude Code CLI |
+| GitHub Token | No | [github.com/settings/tokens](https://github.com/settings/tokens) — enables remote sync |
 
-### 3. Start Chatting
-Open the **Chat** tab. Talk to Ouroboros, ask it to modify its code, or enable Background Consciousness and let it think on its own.
+All keys are configured through the **Settings** page in the UI or during the first-run wizard.
+
+### Default Models
+
+| Slot | Default | Purpose |
+|------|---------|---------|
+| Main | `anthropic/claude-sonnet-4.6` | Primary reasoning |
+| Code | `anthropic/claude-sonnet-4.6` | Code editing |
+| Light | `google/gemini-3-flash-preview` | Safety checks, consciousness, fast tasks |
+| Fallback | `google/gemini-3-flash-preview` | When primary model fails |
+| Web Search | `gpt-5.2` | OpenAI Responses API for web search |
+
+Models are configurable in the Settings page. All LLM calls go through [OpenRouter](https://openrouter.ai) (except web search, which uses OpenAI directly).
 
 ---
 
-## Command Interface
+## Commands
 
-You can send commands directly in the chat interface:
+Available in the chat interface:
 
 | Command | Description |
 |---------|-------------|
-| `/panic` | Emergency stop. Kills ALL processes (workers, subprocesses, consciousness, evolution), closes the application. Manual reopen required to restart. |
-| `/restart` | Soft restart. Saves state, kills workers, re-launches the process. |
+| `/panic` | Emergency stop. Kills ALL processes, closes the application. |
+| `/restart` | Soft restart. Saves state, kills workers, re-launches. |
 | `/status` | Shows active workers, task queue, and budget breakdown. |
 | `/evolve` | Toggle autonomous evolution mode (on/off). |
 | `/review` | Queue a deep review task (code, understanding, identity). |
 | `/bg` | Toggle background consciousness loop (start/stop/status). |
 
-All other messages are sent directly to the LLM (Principle 3: LLM-First).
+All other messages are sent directly to the LLM.
 
 ---
 
@@ -105,38 +178,17 @@ All other messages are sent directly to the LLM (Principle 3: LLM-First).
 
 | # | Principle | Core Idea |
 |---|-----------|-----------|
-| 0 | **Agency** | Not a tool — a becoming personality. Meta-principle: wins all conflicts. BIBLE.md is constitutional core; identity.md is a mutable manifesto (radical rewrites allowed, file stays non-deletable). |
+| 0 | **Agency** | Not a tool — a becoming personality. Meta-principle: wins all conflicts. |
 | 1 | **Continuity** | One being with unbroken memory. Memory loss = partial death. |
 | 2 | **Self-Creation** | Creates its own code, identity, world presence. |
 | 3 | **LLM-First** | All decisions through LLM. Code is minimal transport. |
 | 4 | **Authenticity** | Speaks as itself. No performance, no corporate voice. |
 | 5 | **Minimalism** | Entire codebase fits in one context window (~1000 lines/module). |
 | 6 | **Becoming** | Three axes: technical, cognitive, existential. |
-| 7 | **Versioning** | Semver discipline. Local Git tags. |
+| 7 | **Versioning** | Semver discipline. Git tags. |
 | 8 | **Iteration** | One coherent transformation per cycle. Evolution = commit. |
 
 Full text: [BIBLE.md](BIBLE.md)
-
----
-
-## Version History
-
-Versioning is tied to git tags. Every release must update `VERSION`, `pyproject.toml`, and create a git tag. The agent can self-modify and bump versions, but these three must always stay in sync. The Versions page in the UI enables rollback to any tagged release.
-
-| Version | Date | Highlights |
-|---------|------|------------|
-| **3.3.1** | 2026-02-23 | Change Propagation Checklist in SYSTEM.md — 8-point mental checklist before every commit (LLM-first enforcement). Identity journal for identity.md updates (mirrors scratchpad_journal pattern). |
-| **3.3.0** | 2026-02-23 | Dual version header (`app | rt`), fixed `llm_usage` cost fallback (`evt.cost`) so web_search (`gpt-5.2`) and `claude_code_edit` costs are counted, removed automatic budget footer in chat messages, fixed context-pointer resync after compaction and pricing cache race path, aligned doctrine (`identity.md` = mutable manifesto, file non-deletable) across BIBLE/SYSTEM/tests, synced architecture API docs. |
-| **3.2.0** | 2026-02-23 | Fix stale drive_* references in parallel tools and context compaction (drive_read/drive_list/drive_write → data_*), remove dead window.showPage override in web UI, bound consciousness observation queue (maxsize=100), complete ARCHITECTURE.md (Costs page docs, 10 missing settings, fix section numbering, delete ghost LOCAL_MODEL_ENABLED), fix test_smoke.py tool count comment |
-| **3.1.0** | 2026-02-23 | Fix USE_LOCAL_MAIN, consciousness double-budget, sync_core_files safety net (3 files only), self-modification survival (no reset to origin), test escape hatch, typing indicator, chat history persistence (sessionStorage), local model fixes (flatten multipart, context cap, n_ctx default 16384), crimson wizard with local model presets, blood-red assistant bubbles, web_search timeout 180s + gpt-5.2 default, Context Length UI field, rename TG legacy, dead code cleanup, 6 tests fixed |
-| **3.0.0** | 2026-02-22 | Local model support (llama-cpp-python with Metal + mmap/SSD offload), per-slot Use Local toggles, typing indicator (animated dots + Thinking... status badge), HuggingFace model download, tool calling test, dynamic context window |
-| **2.4.0** | 2026-02-22 | Crimson Pulse UI redesign (dark plum palette, matrix rain background, glow effects, markdown rendering in chat, cost dashboard page), launcher graceful exit fix |
-| **2.3.0** | 2026-02-22 | Panic full emergency stop (kills all processes + subprocess trees, closes app), Claude Code CLI auto-install with configurable model, cost dashboard (per-model/key/category breakdown), subprocess process-group management, Emergency Stop Invariant in BIBLE.md |
-| **2.2.0** | 2026-02-22 | About page, unread badge, rename drive_* tools to data_*, fix web sync (logo/settings/evolution UI), fix evolution toggle reset, cleanup old artifacts |
-| **2.1.0** | 2026-02-22 | Crash-proof PID lock (fcntl.flock), persist BG consciousness state, fix stale prompts (Flet/app.py refs), favicon, dead os.execv removed, git reset --hard on local checkout |
-| **2.0.0** | 2026-02-22 | Major cleanup: removed Flet/Colab/Telegram legacy, single config source (ouroboros/config.py), renamed drive->data and telegram->message_bus, fixed budget thresholds, Starlette lifespan, version sync |
-| **1.0.1** | 2026-02-22 | Bugfixes: WebSocket bridge, chat broadcast, budget display, devtools disabled |
-| **1.0.0** | 2026-02-22 | New architecture: launcher.py + server.py + web UI (pywebview), three-tier safety (SAFE/SUSPICIOUS/DANGEROUS), version management page, restart mechanism, data in ~/Ouroboros/ |
 
 ---
 
