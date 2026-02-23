@@ -321,12 +321,14 @@ def build_llm_messages(
     # BIBLE.md always included (Constitution requires it for every decision)
     # README.md only for evolution/review (architecture context)
     needs_full_context = task_type in ("evolution", "review", "scheduled")
+    # For small context windows (local models), aggressively clip static content
+    static_budget = min(180000, max(2000, soft_cap_tokens * 3))
     static_text = (
-        base_prompt + "\n\n"
-        + "## BIBLE.md\n\n" + clip_text(bible_md, 180000)
+        clip_text(base_prompt, static_budget) + "\n\n"
+        + "## BIBLE.md\n\n" + clip_text(bible_md, static_budget)
     )
     if needs_full_context:
-        static_text += "\n\n## README.md\n\n" + clip_text(readme_md, 180000)
+        static_text += "\n\n## README.md\n\n" + clip_text(readme_md, static_budget)
 
     # Semi-stable content: identity, scratchpad, knowledge
     # These change ~once per task, not per round
@@ -470,6 +472,26 @@ def apply_message_token_soft_cap(
                 info["trimmed_sections"].append(prefix)
                 estimated = sum(_estimate_message_tokens(m) for m in pruned)
                 break
+
+    # If still over budget after section pruning, truncate all text blocks proportionally
+    if estimated > soft_cap_tokens and soft_cap_tokens > 0:
+        ratio = soft_cap_tokens / max(estimated, 1)
+        for msg in pruned:
+            content = msg.get("content")
+            if isinstance(content, list) and msg.get("role") == "system":
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        text = block.get("text", "")
+                        max_chars = max(500, int(len(text) * ratio))
+                        if len(text) > max_chars:
+                            block["text"] = clip_text(text, max_chars)
+                            info["trimmed_sections"].append("(proportional_clip)")
+            elif isinstance(content, str) and msg.get("role") == "system":
+                max_chars = max(500, int(len(content) * ratio))
+                if len(content) > max_chars:
+                    msg["content"] = clip_text(content, max_chars)
+                    info["trimmed_sections"].append("(proportional_clip)")
+        estimated = sum(_estimate_message_tokens(m) for m in pruned)
 
     info["estimated_tokens_after"] = estimated
     return pruned, info
