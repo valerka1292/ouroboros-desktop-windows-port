@@ -29,7 +29,7 @@ Open the DMG → drag `Ouroboros.app` to Applications → done.
   <img src="assets/setup.png" width="500" alt="Drag Ouroboros.app to install">
 </p>
 
-On first launch, right-click → **Open** (Gatekeeper bypass). The wizard will ask for your [OpenRouter API key](https://openrouter.ai/keys).
+On first launch, the wizard will ask for your [OpenRouter API key](https://openrouter.ai/keys).
 
 ---
 
