@@ -16,6 +16,7 @@ class WS {
         this.reconnectDelay = 1000;
         this.maxDelay = 10000;
         this._wasConnected = false;
+        this._lastSha = null;
         this.connect();
     }
 
@@ -23,10 +24,22 @@ class WS {
         this.ws = new WebSocket(this.url);
         this.ws.onopen = () => {
             if (this._wasConnected) {
-                location.reload();
+                fetch('/api/state').then(r => r.json()).then(d => {
+                    if (this._lastSha && d.sha && d.sha !== this._lastSha) {
+                        location.reload();
+                    } else {
+                        this._lastSha = d.sha || this._lastSha;
+                        this.reconnectDelay = 1000;
+                        this.emit('open');
+                        document.getElementById('reconnect-overlay')?.classList.remove('visible');
+                    }
+                }).catch(() => location.reload());
                 return;
             }
             this._wasConnected = true;
+            fetch('/api/state').then(r => r.json()).then(d => {
+                this._lastSha = d.sha || null;
+            }).catch(() => {});
             this.reconnectDelay = 1000;
             this.emit('open');
             document.getElementById('reconnect-overlay')?.classList.remove('visible');

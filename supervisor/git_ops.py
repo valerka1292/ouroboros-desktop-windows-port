@@ -307,51 +307,32 @@ def checkout_and_reset(branch: str, reason: str = "unspecified",
                 },
             )
 
-    if _has_remote():
-        rc_verify = subprocess.run(
-            ["git", "rev-parse", "--verify", f"origin/{branch}"],
-            cwd=str(REPO_DIR), capture_output=True,
-        ).returncode
-        if rc_verify != 0:
-            msg = f"Branch {branch} not found on remote"
-            append_jsonl(
-                DRIVE_ROOT / "logs" / "supervisor.jsonl",
-                {
-                    "ts": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                    "type": "reset_branch_missing",
-                    "target_branch": branch, "reason": reason,
-                },
-            )
-            return False, msg
-        subprocess.run(["git", "checkout", branch], cwd=str(REPO_DIR), check=True)
-        subprocess.run(["git", "reset", "--hard", f"origin/{branch}"], cwd=str(REPO_DIR), check=True)
-    else:
-        # Local-only: ensure branch exists, checkout without remote reset
-        rc_local = subprocess.run(
-            ["git", "rev-parse", "--verify", branch],
-            cwd=str(REPO_DIR), capture_output=True,
-        ).returncode
-        
-        # Helper for resilient git commands against lock contention
-        def _run_git_resilient(cmd, **kwargs):
-            import time
-            for attempt in range(5):
-                try:
-                    return subprocess.run(cmd, **kwargs)
-                except subprocess.CalledProcessError as e:
-                    if attempt == 4:
-                        raise e
-                    time.sleep(1)
-            return subprocess.run(cmd, **kwargs)
+    # Always use local HEAD — remote (if configured) is for push/backup only,
+    # never for resetting the local branch. Agent commits must survive restarts.
+    def _run_git_resilient(cmd, **kwargs):
+        import time
+        for attempt in range(5):
+            try:
+                return subprocess.run(cmd, **kwargs)
+            except subprocess.CalledProcessError as e:
+                if attempt == 4:
+                    raise e
+                time.sleep(1)
+        return subprocess.run(cmd, **kwargs)
 
-        if rc_local != 0:
-            # Create the branch from current HEAD
-            _run_git_resilient(["git", "reset", "--hard", "HEAD"], cwd=str(REPO_DIR), check=True)
-            _run_git_resilient(["git", "clean", "-fd"], cwd=str(REPO_DIR), check=True)
-            _run_git_resilient(["git", "checkout", "-b", branch], cwd=str(REPO_DIR), check=False)
-        else:
-            _run_git_resilient(["git", "checkout", branch], cwd=str(REPO_DIR), check=True)
-            _run_git_resilient(["git", "reset", "--hard", "HEAD"], cwd=str(REPO_DIR), check=True)
+    rc_local = subprocess.run(
+        ["git", "rev-parse", "--verify", branch],
+        cwd=str(REPO_DIR), capture_output=True,
+    ).returncode
+
+    if rc_local != 0:
+        _run_git_resilient(["git", "reset", "--hard", "HEAD"], cwd=str(REPO_DIR), check=True)
+        _run_git_resilient(["git", "clean", "-fd"], cwd=str(REPO_DIR), check=True)
+        _run_git_resilient(["git", "checkout", "-b", branch], cwd=str(REPO_DIR), check=False)
+    else:
+        _run_git_resilient(["git", "checkout", branch], cwd=str(REPO_DIR), check=True)
+        _run_git_resilient(["git", "reset", "--hard", "HEAD"], cwd=str(REPO_DIR), check=True)
+
     # Clean __pycache__ to prevent stale bytecode (git checkout may not update mtime)
     for p in REPO_DIR.rglob("__pycache__"):
         shutil.rmtree(p, ignore_errors=True)
