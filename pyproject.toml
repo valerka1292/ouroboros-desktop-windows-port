@@ -30,9 +30,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/razzant/ouroboros"
-Repository = "https://github.com/razzant/ouroboros"
-Issues = "https://github.com/razzant/ouroboros/issues"
+Homepage = "https://github.com/joi-lab/ouroboros-desktop"
+Repository = "https://github.com/joi-lab/ouroboros-desktop"
+Issues = "https://github.com/joi-lab/ouroboros-desktop/issues"
 "Previous Version (Colab)" = "https://github.com/joi-lab/ouroboros"
 
 [project.optional-dependencies]
