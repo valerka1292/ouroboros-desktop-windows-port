@@ -17,6 +17,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('VERSION', '.'),
+        ('.gitignore', '.'),
         ('BIBLE.md', '.'),
         ('README.md', '.'),
         ('requirements.txt', '.'),

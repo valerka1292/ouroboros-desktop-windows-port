@@ -53,20 +53,67 @@ def git_capture(cmd: List[str]) -> Tuple[int, str, str]:
     return r.returncode, (r.stdout or "").strip(), (r.stderr or "").strip()
 
 
+_REPO_GITIGNORE = """\
+# Secrets
+.env
+.env.*
+*.key
+*.pem
+
+# IDE
+.cursor/
+.vscode/
+.idea/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Build artifacts
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+
+# Native / binary artifacts (PyInstaller, compiled extensions)
+*.so
+*.dylib
+*.dll
+*.dist-info/
+base_library.zip
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Release artifacts
+.create_release.py
+.release_notes.md
+python-standalone/
+"""
+
+
+def _ensure_repo_gitignore(repo_dir: pathlib.Path = None) -> None:
+    """Write .gitignore if missing — MUST run before any git add -A."""
+    target = repo_dir or REPO_DIR
+    gi = target / ".gitignore"
+    if not gi.exists():
+        gi.write_text(_REPO_GITIGNORE, encoding="utf-8")
+
+
 def ensure_repo_present() -> None:
     if not (REPO_DIR / ".git").exists():
         subprocess.run(["rm", "-rf", str(REPO_DIR)], check=False)
         REPO_DIR.mkdir(parents=True, exist_ok=True)
-        # Instead of cloning from a remote, initialize a local repo
-        # Note: The actual codebase copy is handled by the bootstrap logic in app.py before this is called
+        _ensure_repo_gitignore()
         import dulwich.repo
         dulwich.repo.Repo.init(str(REPO_DIR))
         
-        # Configure local git
         subprocess.run(["git", "config", "user.name", "Ouroboros"], cwd=str(REPO_DIR), check=True)
         subprocess.run(["git", "config", "user.email", "ouroboros@local.mac"], cwd=str(REPO_DIR), check=True)
         
-        # Initial commit if there are files
         rc, _, _ = git_capture(["git", "status", "--porcelain"])
         if rc == 0:
             subprocess.run(["git", "add", "-A"], cwd=str(REPO_DIR), check=True)

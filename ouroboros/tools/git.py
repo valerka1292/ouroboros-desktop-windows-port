@@ -12,6 +12,44 @@ from typing import Any, Dict, List, Optional
 from ouroboros.tools.registry import ToolContext, ToolEntry
 from ouroboros.utils import utc_now_iso, write_text, safe_relpath, run_cmd
 
+_BINARY_EXTENSIONS = frozenset({
+    ".so", ".dylib", ".dll", ".a", ".lib", ".o", ".obj",
+    ".pyc", ".pyo", ".whl", ".egg",
+})
+
+
+def _ensure_gitignore(repo_dir) -> None:
+    """Safety net: if .gitignore is missing, create a minimal one before git add."""
+    gi = pathlib.Path(repo_dir) / ".gitignore"
+    if gi.exists():
+        return
+    gi.write_text(
+        "__pycache__/\n*.pyc\n*.pyo\n*.so\n*.dylib\n*.dll\n"
+        "*.dist-info/\nbase_library.zip\n.DS_Store\n",
+        encoding="utf-8",
+    )
+
+
+def _unstage_binaries(repo_dir) -> List[str]:
+    """After git add, unstage files with binary extensions that shouldn't be tracked."""
+    try:
+        staged = run_cmd(["git", "diff", "--cached", "--name-only"], cwd=repo_dir)
+    except Exception:
+        return []
+    removed = []
+    for f in staged.strip().splitlines():
+        f = f.strip()
+        if not f:
+            continue
+        ext = pathlib.Path(f).suffix.lower()
+        if ext in _BINARY_EXTENSIONS:
+            try:
+                run_cmd(["git", "reset", "HEAD", "--", f], cwd=repo_dir)
+                removed.append(f)
+            except Exception:
+                pass
+    return removed
+
 log = logging.getLogger(__name__)
 
 
@@ -185,11 +223,16 @@ def _repo_commit_push(ctx: ToolContext, commit_message: str, paths: Optional[Lis
                 return f"⚠️ PATH_ERROR: {e}"
             add_cmd = ["git", "add"] + safe_paths
         else:
+            _ensure_gitignore(ctx.repo_dir)
             add_cmd = ["git", "add", "-A"]
         try:
             run_cmd(add_cmd, cwd=ctx.repo_dir)
         except Exception as e:
             return f"⚠️ GIT_ERROR (add): {e}"
+        if not paths:
+            removed = _unstage_binaries(ctx.repo_dir)
+            if removed:
+                log.warning("Unstaged %d binary files: %s", len(removed), removed)
         try:
             status = run_cmd(["git", "status", "--porcelain"], cwd=ctx.repo_dir)
         except Exception as e:

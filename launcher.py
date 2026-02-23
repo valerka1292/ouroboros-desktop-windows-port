@@ -129,6 +129,55 @@ def _commit_synced_files() -> None:
         log.warning("Failed to commit synced files: %s", e)
 
 
+_REPO_GITIGNORE = """\
+# Secrets
+.env
+.env.*
+*.key
+*.pem
+
+# IDE
+.cursor/
+.vscode/
+.idea/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Build artifacts
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+
+# Native / binary artifacts (PyInstaller, compiled extensions)
+*.so
+*.dylib
+*.dll
+*.dist-info/
+base_library.zip
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Release artifacts
+.create_release.py
+.release_notes.md
+python-standalone/
+"""
+
+
+def _ensure_repo_gitignore(repo_dir: pathlib.Path) -> None:
+    """Write .gitignore if missing — MUST run before any git add -A."""
+    gi = repo_dir / ".gitignore"
+    if not gi.exists():
+        gi.write_text(_REPO_GITIGNORE, encoding="utf-8")
+
+
 def bootstrap_repo() -> None:
     """Copy bundled codebase to REPO_DIR on first run, sync core files always."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -150,7 +199,9 @@ def bootstrap_repo() -> None:
             "repo", "data", "build", "dist", ".git", "__pycache__", "venv", ".venv",
             "Ouroboros.spec", "run_demo.sh", "demo_app.py", "app.py", "launcher.py",
             "colab_launcher.py", "colab_bootstrap_shim.py",
-            "python-standalone", "assets", "*.pyc",
+            "python-standalone", "assets",
+            "*.pyc", "*.pyo", "*.so", "*.dylib", "*.dll",
+            "*.dist-info", "base_library.zip",
         ))
     else:
         for item in ("server.py", "web"):
@@ -164,6 +215,7 @@ def bootstrap_repo() -> None:
 
     # Initialize git repo if new
     if needs_full_bootstrap:
+        _ensure_repo_gitignore(REPO_DIR)
         try:
             subprocess.run(["git", "init"], cwd=str(REPO_DIR), check=True, capture_output=True)
             subprocess.run(["git", "config", "user.name", "Ouroboros"], cwd=str(REPO_DIR), check=True, capture_output=True)

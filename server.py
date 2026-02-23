@@ -154,6 +154,11 @@ def _run_supervisor(settings: dict) -> None:
             branch_dev="ouroboros", branch_stable="ouroboros-stable",
         )
         ensure_repo_present()
+        _repo_slug = settings.get("GITHUB_REPO", "")
+        _gh_token = settings.get("GITHUB_TOKEN", "")
+        if _repo_slug and _gh_token:
+            from supervisor.git_ops import configure_remote
+            configure_remote(_repo_slug, _gh_token)
         ok, msg = safe_restart(reason="bootstrap", unsynced_policy="rescue_and_reset")
         if not ok:
             log.error("Supervisor bootstrap failed: %s", msg)
@@ -555,6 +560,11 @@ async def api_settings_post(request: Request) -> JSONResponse:
                 current[key] = body[key]
         save_settings(current)
         _apply_settings_to_env(current)
+        _repo_slug = current.get("GITHUB_REPO", "")
+        _gh_token = current.get("GITHUB_TOKEN", "")
+        if _repo_slug and _gh_token:
+            from supervisor.git_ops import configure_remote
+            configure_remote(_repo_slug, _gh_token)
         return JSONResponse({"status": "saved"})
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)

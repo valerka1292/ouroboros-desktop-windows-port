@@ -39,6 +39,9 @@ class Memory:
     def journal_path(self) -> pathlib.Path:
         return self._memory_path("scratchpad_journal.jsonl")
 
+    def identity_journal_path(self) -> pathlib.Path:
+        return self._memory_path("identity_journal.jsonl")
+
     def logs_path(self, name: str) -> pathlib.Path:
         return (self.drive_root / "logs" / name).resolve()
 
@@ -71,6 +74,8 @@ class Memory:
             write_text(self.identity_path(), self._default_identity())
         if not self.journal_path().exists():
             write_text(self.journal_path(), "")
+        if not self.identity_journal_path().exists():
+            write_text(self.identity_journal_path(), "")
 
     # --- Chat history ---
 
@@ -227,6 +232,9 @@ class Memory:
 
     def append_journal(self, entry: Dict[str, Any]) -> None:
         append_jsonl(self.journal_path(), entry)
+
+    def append_identity_journal(self, entry: Dict[str, Any]) -> None:
+        append_jsonl(self.identity_journal_path(), entry)
 
     # --- Defaults ---
 

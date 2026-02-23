@@ -131,9 +131,29 @@ def _send_owner_message(ctx: ToolContext, text: str, reason: str = "") -> str:
 
 def _update_identity(ctx: ToolContext, content: str) -> str:
     """Update identity manifest (who you are, who you want to become)."""
+    from ouroboros.memory import Memory
+    mem = Memory(drive_root=ctx.drive_root)
+    mem.ensure_files()
+
+    old_content = ""
     path = ctx.drive_root / "memory" / "identity.md"
+    if path.exists():
+        try:
+            old_content = path.read_text(encoding="utf-8")
+        except Exception:
+            pass
+
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
+
+    mem.append_identity_journal({
+        "ts": utc_now_iso(),
+        "old_len": len(old_content),
+        "new_len": len(content),
+        "old_preview": old_content[:500],
+        "new_preview": content[:500],
+    })
+
     return f"OK: identity updated ({len(content)} chars)"
 
 
