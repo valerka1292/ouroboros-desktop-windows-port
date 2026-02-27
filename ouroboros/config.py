@@ -14,10 +14,10 @@ import pathlib
 import sys
 import time
 from types import ModuleType
-from typing import Any, Optional
+from typing import Any, IO, Optional, cast
 
 try:
-    portalocker: Optional[ModuleType] = importlib.import_module("portalocker")
+    portalocker: ModuleType | None = importlib.import_module("portalocker")
 except ImportError:
     portalocker = None
 
@@ -189,7 +189,7 @@ def apply_settings_to_env(settings: SettingsDict) -> None:
 # The OS releases the lock automatically when the process dies (even SIGKILL),
 # so stale lock files can never block future launches.
 # ---------------------------------------------------------------------------
-_lock_fd = None
+_lock_fd: IO[str] | None = None
 
 
 def acquire_pid_lock() -> bool:
@@ -208,13 +208,17 @@ def acquire_pid_lock() -> bool:
 
     try:
         _lock_fd = open(str(PID_FILE), "w")
-        portalocker_module.lock(_lock_fd, portalocker_module.LOCK_EX | portalocker_module.LOCK_NB)
+        lock_ex = cast(int, getattr(portalocker_module, "LOCK_EX"))
+        lock_nb = cast(int, getattr(portalocker_module, "LOCK_NB"))
+        lock_fn = cast(Any, getattr(portalocker_module, "lock"))
+        lock_fn(_lock_fd, lock_ex | lock_nb)
         _lock_fd.write(str(os.getpid()))
         _lock_fd.flush()
         return True
     except Exception as e:
-        if isinstance(e, portalocker_module.LockException):
-            pass # normal lock failure
+        lock_exception = cast(Any, getattr(portalocker_module, "LockException", None))
+        if lock_exception is not None and isinstance(e, lock_exception):
+            pass  # normal lock failure
         if _lock_fd:
             try:
                 _lock_fd.close()
@@ -229,7 +233,8 @@ def release_pid_lock() -> None:
     if _lock_fd is not None:
         try:
             if portalocker is not None:
-                portalocker.unlock(_lock_fd)
+                unlock_fn = cast(Any, getattr(portalocker, "unlock"))
+                unlock_fn(_lock_fd)
             _lock_fd.close()
         except Exception:
             pass
