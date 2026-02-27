@@ -42,6 +42,8 @@ AGENT_SERVER_PORT = 8765
 # Settings defaults
 # ---------------------------------------------------------------------------
 SETTINGS_DEFAULTS = {
+    "OPENAI_COMPAT_API_KEY": "",
+    "OPENAI_COMPAT_BASE_URL": "https://openrouter.ai/api/v1",
     "OPENROUTER_API_KEY": "",
     "OPENAI_API_KEY": "",
     "ANTHROPIC_API_KEY": "",
@@ -166,6 +168,7 @@ def save_settings(settings: SettingsDict) -> None:
 def apply_settings_to_env(settings: SettingsDict) -> None:
     """Push settings into environment variables for supervisor modules."""
     env_keys = [
+        "OPENAI_COMPAT_API_KEY", "OPENAI_COMPAT_BASE_URL",
         "OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
         "OUROBOROS_MODEL", "OUROBOROS_MODEL_CODE", "OUROBOROS_MODEL_LIGHT",
         "OUROBOROS_MODEL_FALLBACK", "CLAUDE_CODE_MODEL",

@@ -21,7 +21,7 @@ MAX_MODELS = 10
 # Concurrency limit for parallel requests
 CONCURRENCY_LIMIT = 5
 
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+DEFAULT_OPENAI_COMPAT_BASE = "https://openrouter.ai/api/v1"
 
 
 def get_tools():
@@ -87,12 +87,12 @@ def _handle_multi_model_review(ctx: ToolContext, content: str = "", prompt: str 
         return json.dumps({"error": f"Review failed: {e}"}, ensure_ascii=False)
 
 
-async def _query_model(client, model, messages, api_key, semaphore):
+async def _query_model(client, endpoint, model, messages, api_key, semaphore):
     """Query a single model with semaphore-based concurrency control. Returns (model, response_dict, headers_dict) or (model, error_str, None)."""
     async with semaphore:
         try:
             resp = await client.post(
-                OPENROUTER_URL,
+                endpoint,
                 headers={
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
@@ -146,9 +146,13 @@ async def _multi_model_review_async(content: str, prompt: str, models: list, ctx
     if len(models) == 0:
         return {"error": "At least one model is required"}
 
-    api_key = os.environ.get("OPENROUTER_API_KEY", "")
+    compat_key = os.environ.get("OPENAI_COMPAT_API_KEY", "")
+    api_key = compat_key or os.environ.get("OPENROUTER_API_KEY", "")
     if not api_key:
-        return {"error": "OPENROUTER_API_KEY not set"}
+        return {"error": "OPENAI_COMPAT_API_KEY/OPENROUTER_API_KEY not set"}
+
+    compat_base = os.environ.get("OPENAI_COMPAT_BASE_URL", "").strip() or DEFAULT_OPENAI_COMPAT_BASE
+    endpoint = f"{compat_base.rstrip('/')}/chat/completions"
 
     messages = [
         {"role": "system", "content": prompt},
@@ -158,7 +162,7 @@ async def _multi_model_review_async(content: str, prompt: str, models: list, ctx
     # Query all models with bounded concurrency
     semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
     async with httpx.AsyncClient() as client:
-        tasks = [_query_model(client, m, messages, api_key, semaphore) for m in models]
+        tasks = [_query_model(client, endpoint, m, messages, api_key, semaphore) for m in models]
         results = await asyncio.gather(*tasks)
 
     # Parse and process results
