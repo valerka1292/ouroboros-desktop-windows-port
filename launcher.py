@@ -26,6 +26,9 @@ import threading
 import time
 from typing import Any, Optional
 
+if str(pathlib.Path(__file__).parent) not in sys.path:
+    sys.path.insert(0, str(pathlib.Path(__file__).parent))
+
 # ---------------------------------------------------------------------------
 # Paths (single source of truth: ouroboros.config)
 # ---------------------------------------------------------------------------
@@ -358,9 +361,10 @@ def start_agent(port: int = AGENT_SERVER_PORT) -> subprocess.Popen:
         log_path = DATA_DIR / "logs" / "agent_stdout.log"
         try:
             with open(log_path, "a", encoding="utf-8") as f:
-                if proc.stdout is None:
+                stdout_stream = proc.stdout
+                if stdout_stream is None:
                     return
-                for line in iter(proc.stdout.readline, b""):
+                for line in iter(stdout_stream.readline, b""):
                     if isinstance(line, bytes):
                         decoded = line.decode("utf-8", errors="replace")
                     else:
@@ -568,7 +572,7 @@ def agent_lifecycle_loop(port: int = AGENT_SERVER_PORT) -> None:
         # Crash detection
         now = time.time()
         crash_times.append(now)
-        crash_times[:] = [t for t in crash_times if (now - t) < CRASH_WINDOW_SEC]
+        crash_times = [t for t in crash_times if (now - t) < CRASH_WINDOW_SEC]
         if len(crash_times) >= MAX_CRASH_RESTARTS:
             log.error("Agent crashed %d times in %ds. Stopping.", MAX_CRASH_RESTARTS, CRASH_WINDOW_SEC)
             break
@@ -867,14 +871,15 @@ def main():
         _kill_stale_on_port(8766)
         import signal
         for child in multiprocessing.active_children():
+            child_pid = child.pid
+            if child_pid is None:
+                continue
             try:
                 if sys.platform == "win32":
-                    if child.pid is None:
-                        continue
-                    os.kill(child.pid, signal.SIGTERM)
+                    os.kill(child_pid, signal.SIGTERM)
                 else:
-                    os.kill(child.pid, getattr(signal, "SIGKILL", signal.SIGTERM))
-                log.info("Killed orphaned child pid=%d", child.pid)
+                    os.kill(child_pid, getattr(signal, "SIGKILL", signal.SIGTERM))
+                log.info("Killed orphaned child pid=%d", child_pid)
             except (ProcessLookupError, PermissionError, OSError):
                 pass
 
