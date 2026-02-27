@@ -24,7 +24,7 @@ import subprocess
 import sys
 import threading
 import time
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 if str(pathlib.Path(__file__).parent) not in sys.path:
     sys.path.insert(0, str(pathlib.Path(__file__).parent))
@@ -32,11 +32,23 @@ if str(pathlib.Path(__file__).parent) not in sys.path:
 # ---------------------------------------------------------------------------
 # Paths (single source of truth: ouroboros.config)
 # ---------------------------------------------------------------------------
-from ouroboros.config import (
-    HOME, APP_ROOT, REPO_DIR, DATA_DIR, SETTINGS_PATH, PID_FILE, PORT_FILE,
-    RESTART_EXIT_CODE, PANIC_EXIT_CODE, AGENT_SERVER_PORT,
-    read_version, load_settings, save_settings, acquire_pid_lock, release_pid_lock,
-)
+_config_module = importlib.import_module("ouroboros.config")
+HOME = cast(pathlib.Path, _config_module.HOME)
+APP_ROOT = cast(pathlib.Path, _config_module.APP_ROOT)
+REPO_DIR = cast(pathlib.Path, _config_module.REPO_DIR)
+DATA_DIR = cast(pathlib.Path, _config_module.DATA_DIR)
+SETTINGS_PATH = cast(pathlib.Path, _config_module.SETTINGS_PATH)
+PID_FILE = cast(pathlib.Path, _config_module.PID_FILE)
+PORT_FILE = cast(pathlib.Path, _config_module.PORT_FILE)
+RESTART_EXIT_CODE = cast(int, _config_module.RESTART_EXIT_CODE)
+PANIC_EXIT_CODE = cast(int, _config_module.PANIC_EXIT_CODE)
+AGENT_SERVER_PORT = cast(int, _config_module.AGENT_SERVER_PORT)
+
+read_version = cast(Any, _config_module.read_version)
+load_settings = cast(Any, _config_module.load_settings)
+save_settings = cast(Any, _config_module.save_settings)
+acquire_pid_lock = cast(Any, _config_module.acquire_pid_lock)
+release_pid_lock = cast(Any, _config_module.release_pid_lock)
 MAX_CRASH_RESTARTS = 5
 CRASH_WINDOW_SEC = 120
 
@@ -547,8 +559,9 @@ def agent_lifecycle_loop(port: int = AGENT_SERVER_PORT) -> None:
             import multiprocessing as _mp
             for child in _mp.active_children():
                 try:
-                    if child.pid is not None:
-                        os.kill(child.pid, 9)
+                    child_pid = child.pid
+                    if child_pid is not None:
+                        os.kill(int(child_pid), 9)
                 except (ProcessLookupError, PermissionError, OSError):
                     pass
             if _webview_window:
