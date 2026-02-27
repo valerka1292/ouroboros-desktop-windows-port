@@ -45,10 +45,11 @@ def _web_search(
     search_context_size: str = "",
     reasoning_effort: str = "",
 ) -> str:
-    api_key = os.environ.get("OPENAI_API_KEY", "")
+    compat_key = os.environ.get("OPENAI_COMPAT_API_KEY", "")
+    api_key = compat_key or os.environ.get("OPENAI_API_KEY", "")
     if not api_key:
         return json.dumps({
-            "error": "OPENAI_API_KEY not set. Configure it in Settings to enable web search."
+            "error": "API key not set. Configure OpenAI-compatible or OpenAI key in Settings to enable web search."
         })
 
     active_model = model or os.environ.get("OUROBOROS_WEBSEARCH_MODEL", DEFAULT_SEARCH_MODEL)
@@ -57,7 +58,11 @@ def _web_search(
 
     try:
         from openai import OpenAI
-        client = OpenAI(api_key=api_key)
+        compat_base = os.environ.get("OPENAI_COMPAT_BASE_URL", "").strip()
+        if compat_key and compat_base:
+            client = OpenAI(api_key=api_key, base_url=compat_base)
+        else:
+            client = OpenAI(api_key=api_key)
         resp = client.responses.create(
             model=active_model,
             tools=[{
@@ -87,7 +92,7 @@ def _web_search(
                     "type": "llm_usage",
                     "provider": "openai_websearch",
                     "model": active_model,
-                    "api_key_type": "openai",
+                    "api_key_type": "openai_compatible" if compat_key else "openai",
                     "model_category": "websearch",
                     "prompt_tokens": input_tokens,
                     "completion_tokens": output_tokens,

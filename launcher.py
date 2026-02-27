@@ -633,60 +633,36 @@ a { color:#e85d6f; }
 </style></head><body>
 <div class="card">
   <h2>Ouroboros</h2>
-  <p class="sub">Configure your LLM provider. Everything can be changed later in Settings.</p>
+  <p class="sub">Configure OpenAI-compatible LLM endpoint. Everything can be changed later in Settings.</p>
 
-  <h3>Cloud LLM (OpenRouter)</h3>
-  <label>OpenRouter API Key <span class="opt">— required for cloud models</span></label>
-  <input id="api-key" type="password" placeholder="sk-or-v1-..." autofocus>
-  <p class="hint">Get one at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a></p>
+  <h3>Cloud LLM (OpenAI-compatible)</h3>
+  <label>Base URL</label>
+  <input id="base-url" value="https://openrouter.ai/api/v1" autofocus>
+  <label>API Key <span class="opt">— required for cloud models</span></label>
+  <input id="api-key" type="password" placeholder="sk-or-v1-...">
+  <p class="hint">OpenRouter example: <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a></p>
   <div class="row">
     <div class="field"><label>Main Model</label><input id="model" value="anthropic/claude-sonnet-4.6"></div>
     <div class="field"><label>Budget ($)</label><input id="budget" type="number" value="10" min="1" step="1" style="width:100px"></div>
   </div>
 
-  <label>OpenAI API Key <span class="opt">— for web search</span></label>
+  <label>OpenAI API Key (optional) <span class="opt">— for native OpenAI web search</span></label>
   <input id="openai-key" type="password" placeholder="sk-...">
-  <p class="hint">Enables the web_search tool. <a href="https://platform.openai.com/api-keys" target="_blank">Get key</a></p>
+  <p class="hint">Needed only if your compatible provider does not support web_search.</p>
 
-  <h3>Local Model (optional)</h3>
-  <label>Preset</label>
-  <select id="local-preset">
-    <option value="">None — use cloud only</option>
-    <option value="qwen25-7b">Qwen2.5-7B Instruct Q3_K_M (~3.9 GB, 16 GB RAM)</option>
-    <option value="qwen3-14b">Qwen3-14B Instruct Q4_K_M (~9 GB, 32 GB RAM)</option>
-    <option value="qwen3-32b">Qwen3-32B Instruct Q4_K_M (~20 GB, 64 GB RAM)</option>
-    <option value="custom">Custom — I'll enter HuggingFace repo</option>
-  </select>
-  <div id="custom-fields" style="display:none">
-    <label>HuggingFace Source</label>
-    <input id="local-source" placeholder="Qwen/Qwen2.5-7B-Instruct-GGUF">
-    <label>GGUF Filename</label>
-    <input id="local-filename" placeholder="qwen2.5-7b-instruct-q3_k_m.gguf">
-  </div>
 
   <p class="err" id="err"></p>
   <button class="btn" id="save-btn" disabled>Start Ouroboros</button>
 </div>
 <script>
-const PRESETS = {
-    'qwen25-7b':  { source: 'Qwen/Qwen2.5-7B-Instruct-GGUF', filename: 'qwen2.5-7b-instruct-q3_k_m.gguf', ctx: 16384 },
-    'qwen3-14b':  { source: 'Qwen/Qwen3-14B-GGUF', filename: 'Qwen3-14B-Q4_K_M.gguf', ctx: 16384 },
-    'qwen3-32b':  { source: 'Qwen/Qwen3-32B-GGUF', filename: 'Qwen3-32B-Q4_K_M.gguf', ctx: 32768 },
-};
 const keyInput = document.getElementById('api-key');
-const preset = document.getElementById('local-preset');
 const btn = document.getElementById('save-btn');
 
 function validate() {
     const hasKey = keyInput.value.trim().length >= 10;
-    const hasLocal = preset.value !== '';
-    btn.disabled = !(hasKey || hasLocal);
+    btn.disabled = !hasKey;
 }
 keyInput.addEventListener('input', validate);
-preset.addEventListener('change', () => {
-    document.getElementById('custom-fields').style.display = preset.value === 'custom' ? '' : 'none';
-    validate();
-});
 
 btn.addEventListener('click', async () => {
     btn.disabled = true; btn.textContent = 'Saving...';
@@ -695,28 +671,11 @@ btn.addEventListener('click', async () => {
         OUROBOROS_MODEL: document.getElementById('model').value.trim() || 'anthropic/claude-sonnet-4.6',
     };
     const orKey = keyInput.value.trim();
-    if (orKey.length >= 10) data.OPENROUTER_API_KEY = orKey;
+    if (orKey.length >= 10) { data.OPENAI_COMPAT_API_KEY = orKey; data.OPENROUTER_API_KEY = orKey; }
+    const baseUrl = document.getElementById('base-url').value.trim();
+    if (baseUrl) data.OPENAI_COMPAT_BASE_URL = baseUrl;
     const oaiKey = document.getElementById('openai-key').value.trim();
     if (oaiKey.length >= 10) data.OPENAI_API_KEY = oaiKey;
-    const p = preset.value;
-    if (p && p !== 'custom' && PRESETS[p]) {
-        data.LOCAL_MODEL_SOURCE = PRESETS[p].source;
-        data.LOCAL_MODEL_FILENAME = PRESETS[p].filename;
-        data.LOCAL_MODEL_CONTEXT_LENGTH = PRESETS[p].ctx;
-        data.LOCAL_MODEL_N_GPU_LAYERS = 0;
-        data.USE_LOCAL_MAIN = !orKey;
-        data.USE_LOCAL_LIGHT = !orKey;
-        data.USE_LOCAL_CODE = !orKey;
-        data.USE_LOCAL_FALLBACK = true;
-    } else if (p === 'custom') {
-        data.LOCAL_MODEL_SOURCE = document.getElementById('local-source').value.trim();
-        data.LOCAL_MODEL_FILENAME = document.getElementById('local-filename').value.trim();
-        data.LOCAL_MODEL_N_GPU_LAYERS = 0;
-        data.USE_LOCAL_MAIN = !orKey;
-        data.USE_LOCAL_LIGHT = !orKey;
-        data.USE_LOCAL_CODE = !orKey;
-        data.USE_LOCAL_FALLBACK = true;
-    }
     const result = await window.pywebview.api.save_wizard(data);
     if (result === 'ok') { btn.textContent = 'Starting...'; }
     else { document.getElementById('err').style.display='block';
@@ -730,9 +689,9 @@ def _save_settings(settings: dict) -> None:
 
 
 def _run_first_run_wizard() -> bool:
-    """Show setup wizard if no API key or local model configured. Returns True if configured."""
+    """Show setup wizard if no API key configured. Returns True if configured."""
     settings = _load_settings()
-    if settings.get("OPENROUTER_API_KEY") or settings.get("LOCAL_MODEL_SOURCE"):
+    if settings.get("OPENAI_COMPAT_API_KEY") or settings.get("OPENROUTER_API_KEY"):
         return True
 
     webview = importlib.import_module("webview")
@@ -740,10 +699,9 @@ def _run_first_run_wizard() -> bool:
 
     class WizardApi:
         def save_wizard(self, data: dict) -> str:
-            key = str(data.get("OPENROUTER_API_KEY", "")).strip()
-            has_local = bool(data.get("LOCAL_MODEL_SOURCE", "").strip())
-            if len(key) < 10 and not has_local:
-                return "Provide an OpenRouter API key or select a local model."
+            key = str(data.get("OPENAI_COMPAT_API_KEY", "")).strip() or str(data.get("OPENROUTER_API_KEY", "")).strip()
+            if len(key) < 10:
+                return "Provide an OpenAI-compatible API key."
             settings.update(data)
             try:
                 _save_settings(settings)

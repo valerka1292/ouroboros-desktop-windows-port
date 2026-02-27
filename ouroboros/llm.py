@@ -108,10 +108,14 @@ class LLMClient:
     def __init__(
         self,
         api_key: Optional[str] = None,
-        base_url: str = "https://openrouter.ai/api/v1",
+        base_url: Optional[str] = None,
     ):
-        self._api_key = api_key or os.environ.get("OPENROUTER_API_KEY", "")
-        self._base_url = base_url
+        compat_key = os.environ.get("OPENAI_COMPAT_API_KEY", "")
+        compat_base = os.environ.get("OPENAI_COMPAT_BASE_URL", "").strip()
+
+        default_base = "https://openrouter.ai/api/v1"
+        self._api_key = api_key or compat_key or os.environ.get("OPENROUTER_API_KEY", "")
+        self._base_url = (base_url or compat_base or default_base).rstrip("/")
         self._client = None
         self._local_client = None
         self._local_port: Optional[int] = None
@@ -269,8 +273,8 @@ class LLMClient:
             "reasoning": {"effort": effort, "exclude": True},
         }
 
-        # Pin Anthropic models to Anthropic provider for prompt caching
-        if model.startswith("anthropic/"):
+        # Pin Anthropic models only for native OpenRouter endpoint (prompt caching).
+        if self._base_url == "https://openrouter.ai/api/v1" and model.startswith("anthropic/"):
             extra_body["provider"] = {
                 "order": ["Anthropic"],
                 "allow_fallbacks": False,
