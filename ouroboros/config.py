@@ -143,9 +143,10 @@ def load_settings() -> SettingsDict:
                     settings.update(loaded)
             except Exception:
                 pass
-        return settings
     finally:
         _release_settings_lock(fd)
+
+    return settings
 
 
 def save_settings(settings: SettingsDict) -> None:

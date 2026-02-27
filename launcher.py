@@ -584,7 +584,7 @@ def agent_lifecycle_loop(port: int = AGENT_SERVER_PORT) -> None:
 
         # Crash detection
         now = time.time()
-        crash_times.append(now)
+        crash_times = [*crash_times, now]
         crash_times = [t for t in crash_times if (now - t) < CRASH_WINDOW_SEC]
         if len(crash_times) >= MAX_CRASH_RESTARTS:
             log.error("Agent crashed %d times in %ds. Stopping.", MAX_CRASH_RESTARTS, CRASH_WINDOW_SEC)
