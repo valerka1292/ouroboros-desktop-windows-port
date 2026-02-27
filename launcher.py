@@ -74,8 +74,27 @@ def _find_embedded_python() -> str:
             pathlib.Path(__file__).parent / "python-standalone" / "bin" / "python",
         ]
     for p in candidates:
+
         if p.exists():
+
             return str(p)
+
+
+
+    if getattr(sys, "frozen", False):
+
+        import shutil
+
+        sys_py = shutil.which("python") or shutil.which("python3")
+
+        if sys_py:
+
+            return sys_py
+
+        raise RuntimeError("Python not found in PATH and no embedded Python provided.")
+
+
+
     return sys.executable
 
 
@@ -805,7 +824,10 @@ def main():
         import signal
         for child in __import__('multiprocessing').active_children():
             try:
-                os.kill(child.pid, signal.SIGKILL)
+                if sys.platform == "win32":
+                    os.kill(child.pid, signal.SIGTERM)
+                else:
+                    os.kill(child.pid, getattr(signal, "SIGKILL", signal.SIGTERM))
                 log.info("Killed orphaned child pid=%d", child.pid)
             except (ProcessLookupError, PermissionError, OSError):
                 pass

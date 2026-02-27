@@ -242,18 +242,24 @@ class LocalModelManager:
 
         log.info("Stopping local model server (pid=%s)...", proc.pid)
         try:
-            pgid = os.getpgid(proc.pid)
-            os.killpg(pgid, signal.SIGTERM)
+            if hasattr(os, "killpg"):
+                pgid = os.getpgid(proc.pid)
+                os.killpg(pgid, signal.SIGTERM)
+            else:
+                proc.terminate()
         except (ProcessLookupError, PermissionError, OSError):
             pass
 
         try:
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
-            log.warning("Local model server did not exit, sending SIGKILL")
+            log.warning("Local model server did not exit, sending SIGKILL/kill")
             try:
-                pgid = os.getpgid(proc.pid)
-                os.killpg(pgid, signal.SIGKILL)
+                if hasattr(os, "killpg"):
+                    pgid = os.getpgid(proc.pid)
+                    os.killpg(pgid, signal.SIGKILL)
+                else:
+                    proc.kill()
             except (ProcessLookupError, PermissionError, OSError):
                 pass
             try:

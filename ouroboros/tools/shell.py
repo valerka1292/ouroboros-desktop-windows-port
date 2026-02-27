@@ -52,10 +52,13 @@ def _tracked_subprocess_run(cmd, **kwargs):
 
 
 def _kill_process_group(proc):
-    """Kill a subprocess and its entire process tree via PGID."""
+    """Kill a subprocess and its entire process tree via PGID (if available)."""
     try:
-        pgid = os.getpgid(proc.pid)
-        os.killpg(pgid, signal.SIGKILL)
+        if hasattr(os, "killpg"):
+            pgid = os.getpgid(proc.pid)
+            os.killpg(pgid, getattr(signal, "SIGKILL", signal.SIGTERM))
+        else:
+            proc.kill()
     except (ProcessLookupError, PermissionError, OSError):
         pass
 

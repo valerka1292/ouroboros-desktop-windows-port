@@ -493,7 +493,10 @@ def _kill_survivors() -> None:
         if pid is None:
             continue
         try:
-            os.kill(pid, signal.SIGKILL)
+            if sys.platform == "win32":
+                os.kill(pid, signal.SIGTERM)
+            else:
+                os.kill(pid, getattr(signal, "SIGKILL", signal.SIGTERM))
         except (ProcessLookupError, PermissionError, OSError):
             pass
         w.proc.join(timeout=2)

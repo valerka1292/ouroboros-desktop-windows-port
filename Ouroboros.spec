@@ -61,6 +61,7 @@ exe = EXE(
     upx=False,
     console=False,
     disable_windowed_traceback=False,
+    icon='assets/icon.ico' if sys.platform == 'win32' else 'assets/icon.icns',
 )
 
 coll = COLLECT(
@@ -74,15 +75,16 @@ coll = COLLECT(
     name='Ouroboros',
 )
 
-app = BUNDLE(
-    coll,
-    name='Ouroboros.app',
-    icon='assets/icon.icns',
-    bundle_identifier='com.ouroboros.agent',
-    info_plist={
-        'CFBundleShortVersionString': open('VERSION').read().strip(),
-        'CFBundleVersion': open('VERSION').read().strip(),
-        'NSHighResolutionCapable': True,
-        'LSMinimumSystemVersion': '12.0',
-    },
-)
+if sys.platform != 'win32':
+    app = BUNDLE(
+        coll,
+        name='Ouroboros.app',
+        icon='assets/icon.icns',
+        bundle_identifier='com.ouroboros.agent',
+        info_plist={
+            'CFBundleShortVersionString': open('VERSION').read().strip(),
+            'CFBundleVersion': open('VERSION').read().strip(),
+            'NSHighResolutionCapable': True,
+            'LSMinimumSystemVersion': '12.0',
+        },
+    )
