@@ -8,14 +8,16 @@ Does not import anything from ouroboros.* (zero dependency level).
 from __future__ import annotations
 
 import json
+import importlib
 import os
 import pathlib
 import sys
 import time
-from typing import Optional
+from types import ModuleType
+from typing import Any, Optional
 
 try:
-    import portalocker
+    portalocker: Optional[ModuleType] = importlib.import_module("portalocker")
 except ImportError:
     portalocker = None
 
@@ -72,6 +74,8 @@ SETTINGS_DEFAULTS = {
     "USE_LOCAL_FALLBACK": False,
 }
 
+SettingsDict = dict[str, Any]
+
 
 # ---------------------------------------------------------------------------
 # Version
@@ -79,7 +83,8 @@ SETTINGS_DEFAULTS = {
 def read_version() -> str:
     try:
         if getattr(sys, "frozen", False):
-            vp = pathlib.Path(sys._MEIPASS) / "VERSION"
+            bundle_root = getattr(sys, "_MEIPASS", pathlib.Path(__file__).parent.parent)
+            vp = pathlib.Path(bundle_root) / "VERSION"
         else:
             vp = pathlib.Path(__file__).parent.parent / "VERSION"
         return vp.read_text(encoding="utf-8").strip()
@@ -127,12 +132,14 @@ def _release_settings_lock(fd: Optional[int]) -> None:
 # ---------------------------------------------------------------------------
 # Load / Save
 # ---------------------------------------------------------------------------
-def load_settings() -> dict:
+def load_settings() -> SettingsDict:
     fd = _acquire_settings_lock()
     try:
         if SETTINGS_PATH.exists():
             try:
-                return json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+                loaded = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    return loaded
             except Exception:
                 pass
         return dict(SETTINGS_DEFAULTS)
@@ -140,7 +147,7 @@ def load_settings() -> dict:
         _release_settings_lock(fd)
 
 
-def save_settings(settings: dict) -> None:
+def save_settings(settings: SettingsDict) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     fd = _acquire_settings_lock()
     try:
@@ -154,7 +161,7 @@ def save_settings(settings: dict) -> None:
         _release_settings_lock(fd)
 
 
-def apply_settings_to_env(settings: dict) -> None:
+def apply_settings_to_env(settings: SettingsDict) -> None:
     """Push settings into environment variables for supervisor modules."""
     env_keys = [
         "OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",

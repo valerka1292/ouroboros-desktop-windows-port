@@ -14,7 +14,9 @@ Responsibilities:
 """
 
 import json
+import importlib
 import logging
+import multiprocessing
 import os
 import pathlib
 import shutil
@@ -22,7 +24,7 @@ import subprocess
 import sys
 import threading
 import time
-from typing import Optional
+from typing import Any, Optional
 
 # ---------------------------------------------------------------------------
 # Paths (single source of truth: ouroboros.config)
@@ -58,42 +60,33 @@ log = logging.getLogger("launcher")
 APP_VERSION = read_version()
 
 
+def _bundle_root() -> pathlib.Path:
+    if getattr(sys, "frozen", False):
+        return pathlib.Path(getattr(sys, "_MEIPASS", pathlib.Path(__file__).parent))
+    return pathlib.Path(__file__).parent
+
+
 # ---------------------------------------------------------------------------
 # Embedded Python
 # ---------------------------------------------------------------------------
 def _find_embedded_python() -> str:
-    """Locate the embedded python-build-standalone interpreter."""
-    if getattr(sys, "frozen", False):
-        candidates = [
-            pathlib.Path(sys._MEIPASS) / "python-standalone" / "bin" / "python3",
-            pathlib.Path(sys._MEIPASS) / "python-standalone" / "bin" / "python",
-        ]
-    else:
-        candidates = [
-            pathlib.Path(__file__).parent / "python-standalone" / "bin" / "python3",
-            pathlib.Path(__file__).parent / "python-standalone" / "bin" / "python",
-        ]
+    """Locate bundled interpreter with Windows/macOS/Linux fallbacks."""
+    base = _bundle_root()
+    candidates = [
+        base / "python-standalone" / "bin" / "python3",
+        base / "python-standalone" / "bin" / "python",
+        base / "python-standalone" / "python.exe",
+        base / "python-standalone" / "python",
+    ]
     for p in candidates:
-
         if p.exists():
-
             return str(p)
 
-
-
     if getattr(sys, "frozen", False):
-
-        import shutil
-
         sys_py = shutil.which("python") or shutil.which("python3")
-
         if sys_py:
-
             return sys_py
-
         raise RuntimeError("Python not found in PATH and no embedded Python provided.")
-
-
 
     return sys.executable
 
@@ -110,10 +103,7 @@ def check_git() -> bool:
 
 def _sync_core_files() -> None:
     """Sync core files from bundle to REPO_DIR on every launch."""
-    if getattr(sys, "frozen", False):
-        bundle_dir = pathlib.Path(sys._MEIPASS)
-    else:
-        bundle_dir = pathlib.Path(__file__).parent
+    bundle_dir = _bundle_root()
 
     sync_paths = [
         "ouroboros/safety.py",
@@ -208,10 +198,7 @@ def bootstrap_repo() -> None:
     needs_full_bootstrap = not REPO_DIR.exists()
     log.info("Bootstrapping repository to %s (full=%s)", REPO_DIR, needs_full_bootstrap)
 
-    if getattr(sys, "frozen", False):
-        bundle_dir = pathlib.Path(sys._MEIPASS)
-    else:
-        bundle_dir = pathlib.Path(__file__).parent
+    bundle_dir = _bundle_root()
 
     if needs_full_bootstrap:
         shutil.copytree(bundle_dir, REPO_DIR, ignore=shutil.ignore_patterns(
@@ -277,7 +264,7 @@ def _migrate_old_settings() -> None:
     if SETTINGS_PATH.exists():
         return
 
-    migrated = {}
+    migrated: dict[str, Any] = {}
     env_keys = [
         "OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
         "OUROBOROS_MODEL", "OUROBOROS_MODEL_CODE", "OUROBOROS_MODEL_LIGHT",
@@ -371,8 +358,13 @@ def start_agent(port: int = AGENT_SERVER_PORT) -> subprocess.Popen:
         log_path = DATA_DIR / "logs" / "agent_stdout.log"
         try:
             with open(log_path, "a", encoding="utf-8") as f:
+                if proc.stdout is None:
+                    return
                 for line in iter(proc.stdout.readline, b""):
-                    decoded = line.decode("utf-8", errors="replace")
+                    if isinstance(line, bytes):
+                        decoded = line.decode("utf-8", errors="replace")
+                    else:
+                        decoded = str(line)
                     f.write(decoded)
                     f.flush()
         except Exception:
@@ -412,24 +404,70 @@ def _read_port_file() -> int:
     return AGENT_SERVER_PORT
 
 
+def _pids_listening_on_port(port: int) -> set[int]:
+    pids: set[int] = set()
+    commands: list[list[str]] = []
+    if sys.platform == "win32":
+        commands = [["netstat", "-ano", "-p", "tcp"]]
+    else:
+        commands = [
+            ["lsof", "-ti", f"tcp:{port}"],
+            ["ss", "-ltnp"],
+        ]
+
+    for cmd in commands:
+        if shutil.which(cmd[0]) is None:
+            continue
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        except Exception:
+            continue
+
+        out = result.stdout
+        if cmd[0] == "netstat":
+            for line in out.splitlines():
+                parts = line.split()
+                if len(parts) >= 5 and parts[1].endswith(f":{port}"):
+                    try:
+                        pids.add(int(parts[-1]))
+                    except ValueError:
+                        pass
+        elif cmd[0] == "lsof":
+            for pid_str in out.split():
+                try:
+                    pids.add(int(pid_str))
+                except ValueError:
+                    pass
+        else:  # ss
+            for line in out.splitlines():
+                if f":{port}" not in line:
+                    continue
+                pid_marker = "pid="
+                if pid_marker in line:
+                    tail = line.split(pid_marker, 1)[1]
+                    pid_digits = "".join(ch for ch in tail if ch.isdigit())
+                    if pid_digits:
+                        pids.add(int(pid_digits))
+
+        if pids:
+            break
+
+    return pids
+
+
 def _kill_stale_on_port(port: int) -> None:
     """Kill any process listening on the given port (cleanup from previous runs)."""
-    try:
-        result = subprocess.run(
-            ["lsof", "-ti", f"tcp:{port}"],
-            capture_output=True, text=True, timeout=5,
-        )
-        pids = result.stdout.strip().split()
-        for pid_str in pids:
-            try:
-                pid = int(pid_str)
-                if pid != os.getpid():
-                    os.kill(pid, 9)
-                    log.info("Killed stale process %d on port %d", pid, port)
-            except (ValueError, ProcessLookupError, PermissionError):
-                pass
-    except Exception:
-        pass
+    for pid in _pids_listening_on_port(port):
+        if pid == os.getpid():
+            continue
+        try:
+            if sys.platform == "win32":
+                subprocess.run(["taskkill", "/F", "/PID", str(pid)], check=False, capture_output=True)
+            else:
+                os.kill(pid, 9)
+            log.info("Killed stale process %d on port %d", pid, port)
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
 
 
 def _wait_for_server(port: int, timeout: float = 30.0) -> bool:
@@ -468,7 +506,7 @@ _webview_window = None  # set by main(), used by lifecycle loop
 
 def agent_lifecycle_loop(port: int = AGENT_SERVER_PORT) -> None:
     """Main loop: start agent, monitor, restart on exit code 42 or crash."""
-    crash_times: list = []
+    crash_times: list[float] = []
 
     # Kill anything left over from a previous launcher session
     _kill_stale_on_port(port)
@@ -505,7 +543,8 @@ def agent_lifecycle_loop(port: int = AGENT_SERVER_PORT) -> None:
             import multiprocessing as _mp
             for child in _mp.active_children():
                 try:
-                    os.kill(child.pid, 9)
+                    if child.pid is not None:
+                        os.kill(child.pid, 9)
                 except (ProcessLookupError, PermissionError, OSError):
                     pass
             if _webview_window:
@@ -679,7 +718,7 @@ def _run_first_run_wizard() -> bool:
     if settings.get("OPENROUTER_API_KEY") or settings.get("LOCAL_MODEL_SOURCE"):
         return True
 
-    import webview
+    webview = importlib.import_module("webview")
     _wizard_done = {"ok": False}
 
     class WizardApi:
@@ -713,7 +752,7 @@ def _run_first_run_wizard() -> bool:
 # Main
 # ---------------------------------------------------------------------------
 def main():
-    import webview
+    webview = importlib.import_module("webview")
 
     if not acquire_pid_lock():
         log.error("Another instance already running.")
@@ -744,7 +783,12 @@ def main():
 
         class GitApi:
             def install_git(self):
-                subprocess.Popen(["xcode-select", "--install"])
+                if sys.platform == "darwin":
+                    subprocess.Popen(["xcode-select", "--install"])
+                elif sys.platform == "win32":
+                    subprocess.Popen(["winget", "install", "--id", "Git.Git", "-e", "--silent"])
+                else:
+                    return "unsupported"
                 for _ in range(300):
                     time.sleep(3)
                     if shutil.which("git"):
@@ -759,7 +803,7 @@ def main():
                 <h2>Git is required</h2>
                 <p>Ouroboros needs Git to manage its local repository.</p>
                 <button id="install-btn" style="padding:10px 24px;border-radius:8px;border:none;background:#0ea5e9;color:white;cursor:pointer;font-size:14px">
-                    Install Git (Xcode CLI Tools)
+                    Install Git
                 </button>
                 <p id="status" style="color:#fbbf24;margin-top:12px"></p>
             </div></body></html>""",
@@ -822,9 +866,11 @@ def main():
         _kill_stale_on_port(port)
         _kill_stale_on_port(8766)
         import signal
-        for child in __import__('multiprocessing').active_children():
+        for child in multiprocessing.active_children():
             try:
                 if sys.platform == "win32":
+                    if child.pid is None:
+                        continue
                     os.kill(child.pid, signal.SIGTERM)
                 else:
                     os.kill(child.pid, getattr(signal, "SIGKILL", signal.SIGTERM))
