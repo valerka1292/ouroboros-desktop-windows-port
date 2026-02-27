@@ -134,15 +134,16 @@ def _release_settings_lock(fd: Optional[int]) -> None:
 # ---------------------------------------------------------------------------
 def load_settings() -> SettingsDict:
     fd = _acquire_settings_lock()
+    settings: SettingsDict = dict(SETTINGS_DEFAULTS)
     try:
         if SETTINGS_PATH.exists():
             try:
                 loaded = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
                 if isinstance(loaded, dict):
-                    return loaded
+                    settings.update(loaded)
             except Exception:
                 pass
-        return dict(SETTINGS_DEFAULTS)
+        return settings
     finally:
         _release_settings_lock(fd)
 
@@ -194,7 +195,8 @@ _lock_fd = None
 def acquire_pid_lock() -> bool:
     global _lock_fd
     APP_ROOT.mkdir(parents=True, exist_ok=True)
-    if portalocker is None:
+    portalocker_module = portalocker
+    if portalocker_module is None:
         # Fallback if portalocker is not installed
         try:
             _lock_fd = open(str(PID_FILE), "w")
@@ -206,12 +208,12 @@ def acquire_pid_lock() -> bool:
 
     try:
         _lock_fd = open(str(PID_FILE), "w")
-        portalocker.lock(_lock_fd, portalocker.LOCK_EX | portalocker.LOCK_NB)
+        portalocker_module.lock(_lock_fd, portalocker_module.LOCK_EX | portalocker_module.LOCK_NB)
         _lock_fd.write(str(os.getpid()))
         _lock_fd.flush()
         return True
     except Exception as e:
-        if portalocker and isinstance(e, portalocker.LockException):
+        if isinstance(e, portalocker_module.LockException):
             pass # normal lock failure
         if _lock_fd:
             try:
