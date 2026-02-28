@@ -470,13 +470,13 @@ async def ws_endpoint(websocket: WebSocket) -> None:
 
             msg_type = msg.get("type", "")
             if msg_type == "chat":
-                text = msg.get("content", "")
+                text = msg.get("content") or msg.get("text") or msg.get("message") or ""
                 if text:
                     from supervisor.message_bus import get_bridge
                     bridge = get_bridge()
                     bridge.ui_send(text)
             elif msg_type == "command":
-                cmd = msg.get("cmd", "")
+                cmd = msg.get("cmd") or msg.get("text") or msg.get("message") or ""
                 if cmd:
                     from supervisor.message_bus import get_bridge
                     bridge = get_bridge()
@@ -596,11 +596,29 @@ async def api_reset(request: Request) -> JSONResponse:
 async def api_command(request: Request) -> JSONResponse:
     try:
         body = await request.json()
-        cmd = body.get("cmd", "")
+        cmd = body.get("cmd") or body.get("text") or body.get("message") or ""
         if cmd:
             from supervisor.message_bus import get_bridge
             bridge = get_bridge()
             bridge.ui_send(cmd)
+        return JSONResponse({"status": "ok"})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
+async def api_chat(request: Request) -> JSONResponse:
+    """Compatibility endpoint for chat messages from legacy and external UIs."""
+    try:
+        body = await request.json()
+        text = body.get("text") or body.get("message") or body.get("content") or ""
+        if not str(text).strip():
+            return JSONResponse(
+                {"error": "missing text/message/content in request body"},
+                status_code=400,
+            )
+        from supervisor.message_bus import get_bridge
+        bridge = get_bridge()
+        bridge.ui_send(str(text))
         return JSONResponse({"status": "ok"})
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
@@ -805,6 +823,7 @@ routes = [
     Route("/api/settings", endpoint=api_settings_get, methods=["GET"]),
     Route("/api/settings", endpoint=api_settings_post, methods=["POST"]),
     Route("/api/command", endpoint=api_command, methods=["POST"]),
+    Route("/api/chat", endpoint=api_chat, methods=["POST"]),
     Route("/api/reset", endpoint=api_reset, methods=["POST"]),
     Route("/api/git/log", endpoint=api_git_log),
     Route("/api/git/rollback", endpoint=api_git_rollback, methods=["POST"]),
